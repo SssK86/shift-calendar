@@ -1,189 +1,253 @@
 <!DOCTYPE html>
-
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<title>交番表シフトカレンダー</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8">
+  <title>交番表シフトカレンダー</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<style>
-body{
-font-family: Arial, sans-serif;
-margin:20px;
-background:#f5f5f5;
-}
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: #f5f5f5;
+    }
 
-h1{
-margin-bottom:10px;
-}
+    h1 {
+      margin-bottom: 10px;
+    }
 
-.container{
-background:white;
-padding:15px;
-border-radius:8px;
-margin-bottom:20px;
-}
+    .container {
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
 
-input,button{
-padding:6px;
-margin:5px;
-}
+    input, button {
+      padding: 6px;
+      margin: 5px;
+    }
 
-.calendar{
-display:grid;
-grid-template-columns:repeat(7,1fr);
-gap:2px;
-background:#ccc;
-}
+    .summary {
+      margin-top: 10px;
+      font-size: 14px;
+    }
 
-.cell{
-background:white;
-min-height:80px;
-padding:5px;
-font-size:14px;
-}
+    .calendar {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 2px;
+      background: #ccc;
+    }
 
-.day{
-font-weight:bold;
-}
+    .cell {
+      background: white;
+      min-height: 80px;
+      padding: 5px;
+      font-size: 14px;
+    }
 
-.shift{
-margin-top:5px;
-padding:2px 5px;
-border-radius:4px;
-font-size:12px;
-display:inline-block;
-}
+    .day {
+      font-weight: bold;
+    }
 
-.work{
-background:#d0e7ff;
-}
+    .shift {
+      margin-top: 5px;
+      padding: 2px 5px;
+      border-radius: 4px;
+      font-size: 12px;
+      display: inline-block;
+    }
 
-.off{
-background:#d4f5d4;
-}
+    .work {
+      background: #d0e7ff;
+    }
 
-.header{
-background:#eee;
-text-align:center;
-font-weight:bold;
-}
-</style>
+    .off {
+      background: #d4f5d4;
+    }
 
+    .header {
+      background: #eee;
+      text-align: center;
+      font-weight: bold;
+    }
+
+    .error {
+      color: #c62828;
+      font-weight: bold;
+      margin-top: 10px;
+    }
+  </style>
 </head>
-
 <body>
 
-<h1>交番表シフトカレンダー</h1>
+  <h1>交番表シフトカレンダー</h1>
 
-<div class="container">
+  <div class="container">
+    <label>年</label>
+    <input type="number" id="year">
 
-<label>年</label> <input type="number" id="year">
+    <label>月</label>
+    <input type="number" id="month" min="1" max="12">
 
-<label>月</label> <input type="number" id="month" min="1" max="12">
+    <br>
 
-<br>
+    <label>基準日</label>
+    <input type="date" id="baseDate">
 
-<label>基準日</label> <input type="date" id="baseDate">
+    <label>開始交番番号</label>
+    <input type="number" id="startIndex" min="1">
 
-<label>開始交番番号</label> <input type="number" id="startIndex" min="1">
+    <br>
 
-<br>
+    <label>交番表 (カンマ区切り)</label>
+    <input type="text" id="pattern" value="早番,遅番,泊まり,休">
 
-<label>交番表 (カンマ区切り)</label>
+    <button onclick="generate()">カレンダー生成</button>
 
-<input type="text" id="pattern"
-value="早番,遅番,泊まり,休">
+    <div class="summary" id="summary"></div>
+    <div class="error" id="error"></div>
+  </div>
 
-<button onclick="generate()">カレンダー生成</button>
+  <div id="calendar"></div>
 
-</div>
+  <script>
+    function createLocalDateFromInput(value) {
+      if (!value) return null;
+      const parts = value.split("-").map(Number);
+      if (parts.length !== 3 || parts.some(Number.isNaN)) return null;
+      const [y, m, d] = parts;
+      return new Date(y, m - 1, d);
+    }
 
-<div id="calendar"></div>
+    function diffDaysLocal(date1, date2) {
+      const msPerDay = 1000 * 60 * 60 * 24;
+      const t1 = new Date(date1.getFullYear(), date1.getMonth(), date1.getDate()).getTime();
+      const t2 = new Date(date2.getFullYear(), date2.getMonth(), date2.getDate()).getTime();
+      return Math.round((t1 - t2) / msPerDay);
+    }
 
-<script>
+    function generate() {
+      const errorEl = document.getElementById("error");
+      const summaryEl = document.getElementById("summary");
+      const calendar = document.getElementById("calendar");
 
-function generate(){
+      errorEl.textContent = "";
+      summaryEl.textContent = "";
+      calendar.innerHTML = "";
 
-const year=parseInt(document.getElementById("year").value)
-const month=parseInt(document.getElementById("month").value)-1
-const baseDate=new Date(document.getElementById("baseDate").value)
-const startIndex=parseInt(document.getElementById("startIndex").value)-1
+      const year = parseInt(document.getElementById("year").value, 10);
+      const monthInput = parseInt(document.getElementById("month").value, 10);
+      const month = monthInput - 1;
+      const baseDate = createLocalDateFromInput(document.getElementById("baseDate").value);
+      const startIndexInput = parseInt(document.getElementById("startIndex").value, 10);
+      const startIndex = startIndexInput - 1;
 
-const pattern=document.getElementById("pattern").value.split(",")
+      const pattern = document.getElementById("pattern").value
+        .split(",")
+        .map(s => s.trim())
+        .filter(s => s !== "");
 
-const calendar=document.getElementById("calendar")
-calendar.innerHTML=""
+      if (!Number.isInteger(year) || !Number.isInteger(monthInput) || monthInput < 1 || monthInput > 12) {
+        errorEl.textContent = "年または月が不正です。";
+        return;
+      }
 
-const grid=document.createElement("div")
-grid.className="calendar"
+      if (!baseDate) {
+        errorEl.textContent = "基準日を正しく入力してください。";
+        return;
+      }
 
-const week=["日","月","火","水","木","金","土"]
+      if (!Number.isInteger(startIndexInput) || startIndexInput < 1) {
+        errorEl.textContent = "開始交番番号は1以上で入力してください。";
+        return;
+      }
 
-week.forEach(w=>{
-const cell=document.createElement("div")
-cell.className="cell header"
-cell.textContent=w
-grid.appendChild(cell)
-})
+      if (pattern.length === 0) {
+        errorEl.textContent = "交番表を1つ以上入力してください。";
+        return;
+      }
 
-const firstDay=new Date(year,month,1)
-const startDay=firstDay.getDay()
+      if (startIndex >= pattern.length) {
+        errorEl.textContent = "開始交番番号が交番表の件数を超えています。";
+        return;
+      }
 
-const lastDate=new Date(year,month+1,0).getDate()
+      const grid = document.createElement("div");
+      grid.className = "calendar";
 
-for(let i=0;i<startDay;i++){
-const cell=document.createElement("div")
-cell.className="cell"
-grid.appendChild(cell)
-}
+      const week = ["日", "月", "火", "水", "木", "金", "土"];
 
-for(let d=1;d<=lastDate;d++){
+      week.forEach(w => {
+        const cell = document.createElement("div");
+        cell.className = "cell header";
+        cell.textContent = w;
+        grid.appendChild(cell);
+      });
 
-const current=new Date(year,month,d)
+      const firstDay = new Date(year, month, 1);
+      const startDay = firstDay.getDay();
+      const lastDate = new Date(year, month + 1, 0).getDate();
 
-const diff=Math.floor((current-baseDate)/(1000*60*60*24))
+      for (let i = 0; i < startDay; i++) {
+        const cell = document.createElement("div");
+        cell.className = "cell";
+        grid.appendChild(cell);
+      }
 
-const index=(startIndex+diff)%pattern.length
-const shift=pattern[(index+pattern.length)%pattern.length]
+      let workCount = 0;
+      let offCount = 0;
 
-const cell=document.createElement("div")
-cell.className="cell"
+      for (let d = 1; d <= lastDate; d++) {
+        const current = new Date(year, month, d);
+        const diff = diffDaysLocal(current, baseDate);
 
-const day=document.createElement("div")
-day.className="day"
-day.textContent=d
+        const index = ((startIndex + diff) % pattern.length + pattern.length) % pattern.length;
+        const shift = pattern[index];
 
-const shiftLabel=document.createElement("div")
-shiftLabel.className="shift"
+        const cell = document.createElement("div");
+        cell.className = "cell";
 
-if(shift.includes("休")){
-shiftLabel.classList.add("off")
-}else{
-shiftLabel.classList.add("work")
-}
+        const day = document.createElement("div");
+        day.className = "day";
+        day.textContent = d;
 
-shiftLabel.textContent=shift
+        const shiftLabel = document.createElement("div");
+        shiftLabel.className = "shift";
 
-cell.appendChild(day)
-cell.appendChild(shiftLabel)
+        if (shift.includes("休")) {
+          shiftLabel.classList.add("off");
+          offCount++;
+        } else {
+          shiftLabel.classList.add("work");
+          workCount++;
+        }
 
-grid.appendChild(cell)
+        shiftLabel.textContent = shift;
 
-}
+        cell.appendChild(day);
+        cell.appendChild(shiftLabel);
+        grid.appendChild(cell);
+      }
 
-calendar.appendChild(grid)
+      summaryEl.textContent =
+        `基準日 ${document.getElementById("baseDate").value} は「${pattern[startIndex]}」として計算しています。` +
+        ` 勤務日数: ${workCount}日 / 休日日数: ${offCount}日`;
 
-}
+      calendar.appendChild(grid);
+    }
 
-const today=new Date()
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, "0");
+    const dd = String(today.getDate()).padStart(2, "0");
 
-document.getElementById("year").value=today.getFullYear()
-document.getElementById("month").value=today.getMonth()+1
-document.getElementById("baseDate").value=today.toISOString().split("T")[0]
-document.getElementById("startIndex").value=1
-
-</script>
+    document.getElementById("year").value = yyyy;
+    document.getElementById("month").value = today.getMonth() + 1;
+    document.getElementById("baseDate").value = `${yyyy}-${mm}-${dd}`;
+    document.getElementById("startIndex").value = 1;
+  </script>
 
 </body>
 </html>
