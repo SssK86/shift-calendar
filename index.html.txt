@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>交番表シフトカレンダー</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body{
+font-family: Arial, sans-serif;
+margin:20px;
+background:#f5f5f5;
+}
+
+h1{
+margin-bottom:10px;
+}
+
+.container{
+background:white;
+padding:15px;
+border-radius:8px;
+margin-bottom:20px;
+}
+
+input,button{
+padding:6px;
+margin:5px;
+}
+
+.calendar{
+display:grid;
+grid-template-columns:repeat(7,1fr);
+gap:2px;
+background:#ccc;
+}
+
+.cell{
+background:white;
+min-height:80px;
+padding:5px;
+font-size:14px;
+}
+
+.day{
+font-weight:bold;
+}
+
+.shift{
+margin-top:5px;
+padding:2px 5px;
+border-radius:4px;
+font-size:12px;
+display:inline-block;
+}
+
+.work{
+background:#d0e7ff;
+}
+
+.off{
+background:#d4f5d4;
+}
+
+.header{
+background:#eee;
+text-align:center;
+font-weight:bold;
+}
+</style>
+
+</head>
+
+<body>
+
+<h1>交番表シフトカレンダー</h1>
+
+<div class="container">
+
+<label>年</label> <input type="number" id="year">
+
+<label>月</label> <input type="number" id="month" min="1" max="12">
+
+<br>
+
+<label>基準日</label> <input type="date" id="baseDate">
+
+<label>開始交番番号</label> <input type="number" id="startIndex" min="1">
+
+<br>
+
+<label>交番表 (カンマ区切り)</label>
+
+<input type="text" id="pattern"
+value="早番,遅番,泊まり,休">
+
+<button onclick="generate()">カレンダー生成</button>
+
+</div>
+
+<div id="calendar"></div>
+
+<script>
+
+function generate(){
+
+const year=parseInt(document.getElementById("year").value)
+const month=parseInt(document.getElementById("month").value)-1
+const baseDate=new Date(document.getElementById("baseDate").value)
+const startIndex=parseInt(document.getElementById("startIndex").value)-1
+
+const pattern=document.getElementById("pattern").value.split(",")
+
+const calendar=document.getElementById("calendar")
+calendar.innerHTML=""
+
+const grid=document.createElement("div")
+grid.className="calendar"
+
+const week=["日","月","火","水","木","金","土"]
+
+week.forEach(w=>{
+const cell=document.createElement("div")
+cell.className="cell header"
+cell.textContent=w
+grid.appendChild(cell)
+})
+
+const firstDay=new Date(year,month,1)
+const startDay=firstDay.getDay()
+
+const lastDate=new Date(year,month+1,0).getDate()
+
+for(let i=0;i<startDay;i++){
+const cell=document.createElement("div")
+cell.className="cell"
+grid.appendChild(cell)
+}
+
+for(let d=1;d<=lastDate;d++){
+
+const current=new Date(year,month,d)
+
+const diff=Math.floor((current-baseDate)/(1000*60*60*24))
+
+const index=(startIndex+diff)%pattern.length
+const shift=pattern[(index+pattern.length)%pattern.length]
+
+const cell=document.createElement("div")
+cell.className="cell"
+
+const day=document.createElement("div")
+day.className="day"
+day.textContent=d
+
+const shiftLabel=document.createElement("div")
+shiftLabel.className="shift"
+
+if(shift.includes("休")){
+shiftLabel.classList.add("off")
+}else{
+shiftLabel.classList.add("work")
+}
+
+shiftLabel.textContent=shift
+
+cell.appendChild(day)
+cell.appendChild(shiftLabel)
+
+grid.appendChild(cell)
+
+}
+
+calendar.appendChild(grid)
+
+}
+
+const today=new Date()
+
+document.getElementById("year").value=today.getFullYear()
+document.getElementById("month").value=today.getMonth()+1
+document.getElementById("baseDate").value=today.toISOString().split("T")[0]
+document.getElementById("startIndex").value=1
+
+</script>
+
+</body>
+</html>
