@@ -4,12 +4,12 @@
   <meta charset="UTF-8">
   <title>交番表シフトカレンダー</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
   <style>
     body {
       font-family: Arial, sans-serif;
       margin: 20px;
       background: #f5f5f5;
+      color: #222;
     }
 
     h1 {
@@ -17,20 +17,76 @@
     }
 
     .container {
-      background: white;
-      padding: 15px;
-      border-radius: 8px;
+      background: #fff;
+      padding: 16px;
+      border-radius: 10px;
       margin-bottom: 20px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
     }
 
-    input, button {
-      padding: 6px;
-      margin: 5px;
+    label {
+      font-weight: bold;
+      margin-right: 6px;
+    }
+
+    input, button, textarea {
+      padding: 8px;
+      margin: 5px 0 10px 0;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+
+    input[type="number"],
+    input[type="date"] {
+      width: 180px;
+      max-width: 100%;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 320px;
+      resize: vertical;
+      font-family: inherit;
+      line-height: 1.5;
+    }
+
+    button {
+      cursor: pointer;
+      background: #1976d2;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 10px 16px;
+    }
+
+    button:hover {
+      background: #125ca1;
+    }
+
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: flex-start;
+      margin-bottom: 8px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      min-width: 180px;
     }
 
     .summary {
-      margin-top: 10px;
+      margin-top: 12px;
       font-size: 14px;
+      line-height: 1.8;
+    }
+
+    .error {
+      color: #c62828;
+      font-weight: bold;
+      margin-top: 10px;
     }
 
     .calendar {
@@ -38,45 +94,96 @@
       grid-template-columns: repeat(7, 1fr);
       gap: 2px;
       background: #ccc;
+      border: 1px solid #ccc;
     }
 
     .cell {
-      background: white;
-      min-height: 80px;
-      padding: 5px;
+      background: #fff;
+      min-height: 96px;
+      padding: 6px;
       font-size: 14px;
+    }
+
+    .header {
+      background: #eceff1;
+      text-align: center;
+      font-weight: bold;
+      min-height: auto;
     }
 
     .day {
       font-weight: bold;
+      margin-bottom: 6px;
     }
 
     .shift {
-      margin-top: 5px;
-      padding: 2px 5px;
-      border-radius: 4px;
-      font-size: 12px;
       display: inline-block;
+      margin-top: 4px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      line-height: 1.4;
+      word-break: break-word;
     }
 
-    .work {
+    .route {
       background: #d0e7ff;
+      color: #0d47a1;
+    }
+
+    .ake {
+      background: #fff3cd;
+      color: #7a5600;
     }
 
     .off {
       background: #d4f5d4;
+      color: #1b5e20;
     }
 
-    .header {
-      background: #eee;
-      text-align: center;
-      font-weight: bold;
+    .blank {
+      background: #fafafa;
     }
 
-    .error {
-      color: #c62828;
-      font-weight: bold;
+    .legend {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
       margin-top: 10px;
+      font-size: 13px;
+    }
+
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .dot-route { background: #d0e7ff; }
+    .dot-ake { background: #fff3cd; }
+    .dot-off { background: #d4f5d4; }
+
+    @media (max-width: 700px) {
+      .calendar {
+        font-size: 12px;
+      }
+
+      .cell {
+        min-height: 82px;
+        padding: 4px;
+      }
+
+      .shift {
+        font-size: 11px;
+        padding: 2px 6px;
+      }
     }
   </style>
 </head>
@@ -85,26 +192,104 @@
   <h1>交番表シフトカレンダー</h1>
 
   <div class="container">
-    <label>年</label>
-    <input type="number" id="year">
+    <div class="row">
+      <div class="field">
+        <label for="year">年</label>
+        <input type="number" id="year">
+      </div>
 
-    <label>月</label>
-    <input type="number" id="month" min="1" max="12">
+      <div class="field">
+        <label for="month">月</label>
+        <input type="number" id="month" min="1" max="12">
+      </div>
 
-    <br>
+      <div class="field">
+        <label for="baseDate">基準日</label>
+        <input type="date" id="baseDate">
+      </div>
 
-    <label>基準日</label>
-    <input type="date" id="baseDate">
+      <div class="field">
+        <label for="startIndex">開始交番番号</label>
+        <input type="number" id="startIndex" min="1">
+      </div>
+    </div>
 
-    <label>開始交番番号</label>
-    <input type="number" id="startIndex" min="1">
-
-    <br>
-
-    <label>交番表 (カンマ区切り)</label>
-    <input type="text" id="pattern" value="早番,遅番,泊まり,休">
+    <div class="field">
+      <label for="pattern">交番表（1行に1件）</label>
+      <textarea id="pattern">17行路
+明け
+9行路
+明け
+休み
+休み
+24行路
+明け
+15行路
+明け
+休み
+休み
+8行路
+3行路
+18行路
+明け
+休み
+休み
+20行路
+明け
+16行路
+明け
+休み
+休み
+21行路
+明け
+10行路
+明け
+休み
+休み
+7行路
+4行路
+13行路
+明け
+休み
+休み
+26行路
+明け
+11行路
+明け
+休み
+休み
+25行路
+明け
+19行路
+明け
+休み
+休み
+6行路
+1行路
+23行路
+明け
+休み
+休み
+22行路
+明け
+12行路
+明け
+休み
+14行路
+明け
+5行路
+平2行路
+休み
+休み</textarea>
+    </div>
 
     <button onclick="generate()">カレンダー生成</button>
+
+    <div class="legend">
+      <span><i class="dot dot-route"></i> 行路</span>
+      <span><i class="dot dot-ake"></i> 明け</span>
+      <span><i class="dot dot-off"></i> 休み</span>
+    </div>
 
     <div class="summary" id="summary"></div>
     <div class="error" id="error"></div>
@@ -128,14 +313,27 @@
       return Math.round((t1 - t2) / msPerDay);
     }
 
+    function parsePattern(text) {
+      return text
+        .split(/\r?\n|,/)
+        .map(s => s.trim())
+        .filter(s => s !== "");
+    }
+
+    function classifyShift(shift) {
+      if (shift === "明け") return "ake";
+      if (shift.includes("休")) return "off";
+      return "route";
+    }
+
     function generate() {
       const errorEl = document.getElementById("error");
       const summaryEl = document.getElementById("summary");
-      const calendar = document.getElementById("calendar");
+      const calendarEl = document.getElementById("calendar");
 
       errorEl.textContent = "";
       summaryEl.textContent = "";
-      calendar.innerHTML = "";
+      calendarEl.innerHTML = "";
 
       const year = parseInt(document.getElementById("year").value, 10);
       const monthInput = parseInt(document.getElementById("month").value, 10);
@@ -143,11 +341,7 @@
       const baseDate = createLocalDateFromInput(document.getElementById("baseDate").value);
       const startIndexInput = parseInt(document.getElementById("startIndex").value, 10);
       const startIndex = startIndexInput - 1;
-
-      const pattern = document.getElementById("pattern").value
-        .split(",")
-        .map(s => s.trim())
-        .filter(s => s !== "");
+      const pattern = parsePattern(document.getElementById("pattern").value);
 
       if (!Number.isInteger(year) || !Number.isInteger(monthInput) || monthInput < 1 || monthInput > 12) {
         errorEl.textContent = "年または月が不正です。";
@@ -165,7 +359,7 @@
       }
 
       if (pattern.length === 0) {
-        errorEl.textContent = "交番表を1つ以上入力してください。";
+        errorEl.textContent = "交番表を入力してください。";
         return;
       }
 
@@ -174,37 +368,41 @@
         return;
       }
 
+      const week = ["日", "月", "火", "水", "木", "金", "土"];
       const grid = document.createElement("div");
       grid.className = "calendar";
 
-      const week = ["日", "月", "火", "水", "木", "金", "土"];
-
-      week.forEach(w => {
-        const cell = document.createElement("div");
-        cell.className = "cell header";
-        cell.textContent = w;
-        grid.appendChild(cell);
-      });
+      for (const w of week) {
+        const header = document.createElement("div");
+        header.className = "cell header";
+        header.textContent = w;
+        grid.appendChild(header);
+      }
 
       const firstDay = new Date(year, month, 1);
       const startDay = firstDay.getDay();
       const lastDate = new Date(year, month + 1, 0).getDate();
 
       for (let i = 0; i < startDay; i++) {
-        const cell = document.createElement("div");
-        cell.className = "cell";
-        grid.appendChild(cell);
+        const blank = document.createElement("div");
+        blank.className = "cell blank";
+        grid.appendChild(blank);
       }
 
-      let workCount = 0;
+      let routeCount = 0;
+      let akeCount = 0;
       let offCount = 0;
 
       for (let d = 1; d <= lastDate; d++) {
         const current = new Date(year, month, d);
         const diff = diffDaysLocal(current, baseDate);
-
         const index = ((startIndex + diff) % pattern.length + pattern.length) % pattern.length;
         const shift = pattern[index];
+        const kind = classifyShift(shift);
+
+        if (kind === "route") routeCount++;
+        if (kind === "ake") akeCount++;
+        if (kind === "off") offCount++;
 
         const cell = document.createElement("div");
         cell.className = "cell";
@@ -214,16 +412,7 @@
         day.textContent = d;
 
         const shiftLabel = document.createElement("div");
-        shiftLabel.className = "shift";
-
-        if (shift.includes("休")) {
-          shiftLabel.classList.add("off");
-          offCount++;
-        } else {
-          shiftLabel.classList.add("work");
-          workCount++;
-        }
-
+        shiftLabel.className = `shift ${kind}`;
         shiftLabel.textContent = shift;
 
         cell.appendChild(day);
@@ -231,11 +420,15 @@
         grid.appendChild(cell);
       }
 
-      summaryEl.textContent =
-        `基準日 ${document.getElementById("baseDate").value} は「${pattern[startIndex]}」として計算しています。` +
-        ` 勤務日数: ${workCount}日 / 休日日数: ${offCount}日`;
+      summaryEl.innerHTML =
+        `基準日 <strong>${document.getElementById("baseDate").value}</strong> は ` +
+        `<strong>${pattern[startIndex]}</strong> として計算しています。<br>` +
+        `行路日数: <strong>${routeCount}</strong> 日 / ` +
+        `明け日数: <strong>${akeCount}</strong> 日 / ` +
+        `休日日数: <strong>${offCount}</strong> 日 / ` +
+        `交番表件数: <strong>${pattern.length}</strong> 件`;
 
-      calendar.appendChild(grid);
+      calendarEl.appendChild(grid);
     }
 
     const today = new Date();
@@ -247,6 +440,8 @@
     document.getElementById("month").value = today.getMonth() + 1;
     document.getElementById("baseDate").value = `${yyyy}-${mm}-${dd}`;
     document.getElementById("startIndex").value = 1;
+
+    generate();
   </script>
 
 </body>
