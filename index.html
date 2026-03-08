@@ -1,11 +1,10 @@
-<script>
-cons
 <!DOCTYPE html>
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
   <title>交番表シフトカレンダー</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex,nofollow,noarchive,nosnippet">
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -16,6 +15,7 @@ cons
 
     h1 {
       margin-bottom: 10px;
+      font-size: 28px;
     }
 
     .container {
@@ -59,10 +59,19 @@ cons
       border: none;
       border-radius: 6px;
       padding: 10px 16px;
+      margin-right: 8px;
     }
 
     button:hover {
       background: #125ca1;
+    }
+
+    .secondary {
+      background: #666;
+    }
+
+    .secondary:hover {
+      background: #4d4d4d;
     }
 
     .row {
@@ -77,6 +86,7 @@ cons
       display: flex;
       flex-direction: column;
       min-width: 180px;
+      flex: 1 1 180px;
     }
 
     .summary {
@@ -89,6 +99,12 @@ cons
       color: #c62828;
       font-weight: bold;
       margin-top: 10px;
+    }
+
+    .notice {
+      color: #555;
+      font-size: 13px;
+      margin-top: 6px;
     }
 
     .calendar {
@@ -172,7 +188,19 @@ cons
     .dot-ake { background: #fff3cd; }
     .dot-off { background: #d4f5d4; }
 
+    .top-actions {
+      margin-top: 10px;
+    }
+
     @media (max-width: 700px) {
+      body {
+        margin: 12px;
+      }
+
+      h1 {
+        font-size: 24px;
+      }
+
       .calendar {
         font-size: 12px;
       }
@@ -186,8 +214,31 @@ cons
         font-size: 11px;
         padding: 2px 6px;
       }
+
+      input[type="number"],
+      input[type="date"] {
+        width: 100%;
+      }
     }
   </style>
+
+  <script>
+    (function () {
+      const PASSWORD = "1223";
+      const SESSION_KEY = "shiftCalendarAuth";
+
+      const alreadyAuth = sessionStorage.getItem(SESSION_KEY) === "ok";
+      if (alreadyAuth) return;
+
+      const input = prompt("パスワードを入力してください");
+      if (input !== PASSWORD) {
+        document.documentElement.innerHTML = "<head><meta charset='UTF-8'><title>アクセス不可</title></head><body style='font-family:Arial,sans-serif;padding:40px;background:#f5f5f5;'><h2>アクセスできません</h2><p>パスワードが違います。</p></body>";
+        throw new Error("Unauthorized");
+      }
+
+      sessionStorage.setItem(SESSION_KEY, "ok");
+    })();
+  </script>
 </head>
 <body>
 
@@ -285,12 +336,21 @@ cons
 休み</textarea>
     </div>
 
-    <button onclick="generate()">カレンダー生成</button>
+    <div class="top-actions">
+      <button onclick="generate()">カレンダー生成</button>
+      <button class="secondary" onclick="saveSettings()">設定を保存</button>
+      <button class="secondary" onclick="resetSettings()">保存データを削除</button>
+      <button class="secondary" onclick="logout()">再認証</button>
+    </div>
 
     <div class="legend">
       <span><i class="dot dot-route"></i> 行路</span>
       <span><i class="dot dot-ake"></i> 明け</span>
       <span><i class="dot dot-off"></i> 休み</span>
+    </div>
+
+    <div class="notice">
+      設定はこの端末のブラウザに保存されます。GitHub上には保存されません。
     </div>
 
     <div class="summary" id="summary"></div>
@@ -300,6 +360,9 @@ cons
   <div id="calendar"></div>
 
   <script>
+    const STORAGE_KEY = "shiftCalendarSettings_v1";
+    const AUTH_SESSION_KEY = "shiftCalendarAuth";
+
     function createLocalDateFromInput(value) {
       if (!value) return null;
       const parts = value.split("-").map(Number);
@@ -328,13 +391,62 @@ cons
       return "route";
     }
 
+    function escapeHtml(text) {
+      return text
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function saveSettings() {
+      const payload = {
+        year: document.getElementById("year").value,
+        month: document.getElementById("month").value,
+        baseDate: document.getElementById("baseDate").value,
+        startIndex: document.getElementById("startIndex").value,
+        pattern: document.getElementById("pattern").value
+      };
+
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+      alert("設定を保存しました。");
+    }
+
+    function loadSettings() {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return false;
+
+      try {
+        const data = JSON.parse(raw);
+        if (data.year) document.getElementById("year").value = data.year;
+        if (data.month) document.getElementById("month").value = data.month;
+        if (data.baseDate) document.getElementById("baseDate").value = data.baseDate;
+        if (data.startIndex) document.getElementById("startIndex").value = data.startIndex;
+        if (typeof data.pattern === "string") document.getElementById("pattern").value = data.pattern;
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    function resetSettings() {
+      localStorage.removeItem(STORAGE_KEY);
+      alert("保存データを削除しました。ページを再読込すると初期値に戻ります。");
+    }
+
+    function logout() {
+      sessionStorage.removeItem(AUTH_SESSION_KEY);
+      location.reload();
+    }
+
     function generate() {
       const errorEl = document.getElementById("error");
       const summaryEl = document.getElementById("summary");
       const calendarEl = document.getElementById("calendar");
 
       errorEl.textContent = "";
-      summaryEl.textContent = "";
+      summaryEl.innerHTML = "";
       calendarEl.innerHTML = "";
 
       const year = parseInt(document.getElementById("year").value, 10);
@@ -423,29 +535,30 @@ cons
       }
 
       summaryEl.innerHTML =
-        `基準日 <strong>${document.getElementById("baseDate").value}</strong> は ` +
-        `<strong>${pattern[startIndex]}</strong> として計算しています。<br>` +
+        `基準日 <strong>${escapeHtml(document.getElementById("baseDate").value)}</strong> は ` +
+        `<strong>${escapeHtml(pattern[startIndex])}</strong> として計算しています。<br>` +
         `行路日数: <strong>${routeCount}</strong> 日 / ` +
         `明け日数: <strong>${akeCount}</strong> 日 / ` +
         `休日日数: <strong>${offCount}</strong> 日 / ` +
         `交番表件数: <strong>${pattern.length}</strong> 件`;
-
-      calendarEl.appendChild(grid);
     }
 
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, "0");
-    const dd = String(today.getDate()).padStart(2, "0");
+    function setDefaultValues() {
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, "0");
+      const dd = String(today.getDate()).padStart(2, "0");
 
-    document.getElementById("year").value = yyyy;
-    document.getElementById("month").value = today.getMonth() + 1;
-    document.getElementById("baseDate").value = `${yyyy}-${mm}-${dd}`;
-    document.getElementById("startIndex").value = 1;
+      document.getElementById("year").value = yyyy;
+      document.getElementById("month").value = today.getMonth() + 1;
+      document.getElementById("baseDate").value = `${yyyy}-${mm}-${dd}`;
+      document.getElementById("startIndex").value = 1;
+    }
 
+    setDefaultValues();
+    loadSettings();
     generate();
   </script>
 
 </body>
 </html>
-
