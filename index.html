@@ -31,7 +31,7 @@
       margin-right: 6px;
     }
 
-    input, button, textarea {
+    input, button {
       padding: 8px;
       margin: 5px 0 10px 0;
       font-size: 14px;
@@ -42,14 +42,6 @@
     input[type="date"] {
       width: 180px;
       max-width: 100%;
-    }
-
-    textarea {
-      width: 100%;
-      min-height: 320px;
-      resize: vertical;
-      font-family: inherit;
-      line-height: 1.5;
     }
 
     button {
@@ -105,6 +97,7 @@
       color: #555;
       font-size: 13px;
       margin-top: 6px;
+      line-height: 1.6;
     }
 
     .calendar {
@@ -192,6 +185,20 @@
       margin-top: 10px;
     }
 
+    .pattern-preview {
+      margin-top: 14px;
+      padding: 12px;
+      background: #f8f9fa;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 13px;
+      line-height: 1.8;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 220px;
+      overflow: auto;
+    }
+
     @media (max-width: 700px) {
       body {
         margin: 12px;
@@ -227,12 +234,14 @@
       const PASSWORD = "1223";
       const SESSION_KEY = "shiftCalendarAuth";
 
-      const alreadyAuth = sessionStorage.getItem(SESSION_KEY) === "ok";
-      if (alreadyAuth) return;
+      if (sessionStorage.getItem(SESSION_KEY) === "ok") return;
 
       const input = prompt("パスワードを入力してください");
       if (input !== PASSWORD) {
-        document.documentElement.innerHTML = "<head><meta charset='UTF-8'><title>アクセス不可</title></head><body style='font-family:Arial,sans-serif;padding:40px;background:#f5f5f5;'><h2>アクセスできません</h2><p>パスワードが違います。</p></body>";
+        document.documentElement.innerHTML =
+          "<head><meta charset='UTF-8'><title>アクセス不可</title></head>" +
+          "<body style='font-family:Arial,sans-serif;padding:40px;background:#f5f5f5;'>" +
+          "<h2>アクセスできません</h2><p>パスワードが違います。</p></body>";
         throw new Error("Unauthorized");
       }
 
@@ -267,75 +276,6 @@
       </div>
     </div>
 
-    <div class="field">
-      <label for="pattern">交番表（1行に1件）</label>
-      <textarea id="pattern">17行路
-明け
-9行路
-明け
-休み
-休み
-24行路
-明け
-15行路
-明け
-休み
-休み
-8行路
-3行路
-18行路
-明け
-休み
-休み
-20行路
-明け
-16行路
-明け
-休み
-休み
-21行路
-明け
-10行路
-明け
-休み
-休み
-7行路
-4行路
-13行路
-明け
-休み
-休み
-26行路
-明け
-11行路
-明け
-休み
-休み
-25行路
-明け
-19行路
-明け
-休み
-休み
-6行路
-1行路
-23行路
-明け
-休み
-休み
-22行路
-明け
-12行路
-明け
-休み
-14行路
-明け
-5行路
-平2行路
-休み
-休み</textarea>
-    </div>
-
     <div class="top-actions">
       <button onclick="generate()">カレンダー生成</button>
       <button class="secondary" onclick="saveSettings()">設定を保存</button>
@@ -350,8 +290,11 @@
     </div>
 
     <div class="notice">
-      設定はこの端末のブラウザに保存されます。GitHub上には保存されません。
+      交番表は固定です。入力変更はできません。<br>
+      設定はこの端末のブラウザに保存されます。
     </div>
+
+    <div class="pattern-preview" id="patternPreview"></div>
 
     <div class="summary" id="summary"></div>
     <div class="error" id="error"></div>
@@ -360,8 +303,76 @@
   <div id="calendar"></div>
 
   <script>
-    const STORAGE_KEY = "shiftCalendarSettings_v1";
+    const STORAGE_KEY = "shiftCalendarSettings_fixedPattern_v1";
     const AUTH_SESSION_KEY = "shiftCalendarAuth";
+
+    const FIXED_PATTERN = [
+      "17行路",
+      "明け",
+      "9行路",
+      "明け",
+      "休み",
+      "休み",
+      "24行路",
+      "明け",
+      "15行路",
+      "明け",
+      "休み",
+      "休み",
+      "8行路",
+      "3行路",
+      "18行路",
+      "明け",
+      "休み",
+      "休み",
+      "20行路",
+      "明け",
+      "16行路",
+      "明け",
+      "休み",
+      "休み",
+      "21行路",
+      "明け",
+      "10行路",
+      "明け",
+      "休み",
+      "休み",
+      "7行路",
+      "4行路",
+      "13行路",
+      "明け",
+      "休み",
+      "休み",
+      "26行路",
+      "明け",
+      "11行路",
+      "明け",
+      "休み",
+      "休み",
+      "25行路",
+      "明け",
+      "19行路",
+      "明け",
+      "休み",
+      "休み",
+      "6行路",
+      "1行路",
+      "23行路",
+      "明け",
+      "休み",
+      "休み",
+      "22行路",
+      "明け",
+      "12行路",
+      "明け",
+      "休み",
+      "14行路",
+      "明け",
+      "5行路",
+      "平2行路",
+      "休み",
+      "休み"
+    ];
 
     function createLocalDateFromInput(value) {
       if (!value) return null;
@@ -378,13 +389,6 @@
       return Math.round((t1 - t2) / msPerDay);
     }
 
-    function parsePattern(text) {
-      return text
-        .split(/\r?\n|,/)
-        .map(s => s.trim())
-        .filter(s => s !== "");
-    }
-
     function classifyShift(shift) {
       if (shift === "明け") return "ake";
       if (shift.includes("休")) return "off";
@@ -392,7 +396,7 @@
     }
 
     function escapeHtml(text) {
-      return text
+      return String(text)
         .replaceAll("&", "&amp;")
         .replaceAll("<", "&lt;")
         .replaceAll(">", "&gt;")
@@ -405,8 +409,7 @@
         year: document.getElementById("year").value,
         month: document.getElementById("month").value,
         baseDate: document.getElementById("baseDate").value,
-        startIndex: document.getElementById("startIndex").value,
-        pattern: document.getElementById("pattern").value
+        startIndex: document.getElementById("startIndex").value
       };
 
       localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
@@ -423,7 +426,6 @@
         if (data.month) document.getElementById("month").value = data.month;
         if (data.baseDate) document.getElementById("baseDate").value = data.baseDate;
         if (data.startIndex) document.getElementById("startIndex").value = data.startIndex;
-        if (typeof data.pattern === "string") document.getElementById("pattern").value = data.pattern;
         return true;
       } catch {
         return false;
@@ -438,6 +440,13 @@
     function logout() {
       sessionStorage.removeItem(AUTH_SESSION_KEY);
       location.reload();
+    }
+
+    function renderPatternPreview() {
+      const preview = document.getElementById("patternPreview");
+      preview.textContent =
+        "固定交番表（" + FIXED_PATTERN.length + "件）\n\n" +
+        FIXED_PATTERN.map((item, index) => `${index + 1}. ${item}`).join("\n");
     }
 
     function generate() {
@@ -455,7 +464,7 @@
       const baseDate = createLocalDateFromInput(document.getElementById("baseDate").value);
       const startIndexInput = parseInt(document.getElementById("startIndex").value, 10);
       const startIndex = startIndexInput - 1;
-      const pattern = parsePattern(document.getElementById("pattern").value);
+      const pattern = FIXED_PATTERN;
 
       if (!Number.isInteger(year) || !Number.isInteger(monthInput) || monthInput < 1 || monthInput > 12) {
         errorEl.textContent = "年または月が不正です。";
@@ -469,11 +478,6 @@
 
       if (!Number.isInteger(startIndexInput) || startIndexInput < 1) {
         errorEl.textContent = "開始交番番号は1以上で入力してください。";
-        return;
-      }
-
-      if (pattern.length === 0) {
-        errorEl.textContent = "交番表を入力してください。";
         return;
       }
 
@@ -540,9 +544,9 @@
         `行路日数: <strong>${routeCount}</strong> 日 / ` +
         `明け日数: <strong>${akeCount}</strong> 日 / ` +
         `休日日数: <strong>${offCount}</strong> 日 / ` +
-        `交番表件数: <strong>${pattern.length}</strong> 件`;
-      
-      calendarEl.appendChild(grid);  // 
+        `固定交番表件数: <strong>${pattern.length}</strong> 件`;
+
+      calendarEl.appendChild(grid);
     }
 
     function setDefaultValues() {
@@ -559,9 +563,9 @@
 
     setDefaultValues();
     loadSettings();
+    renderPatternPreview();
     generate();
   </script>
 
 </body>
 </html>
-
