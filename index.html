@@ -52,6 +52,7 @@
       border-radius: 6px;
       padding: 10px 16px;
       margin-right: 8px;
+      margin-bottom: 8px;
     }
 
     button:hover {
@@ -64,6 +65,14 @@
 
     .secondary:hover {
       background: #4d4d4d;
+    }
+
+    .success {
+      background: #2e7d32;
+    }
+
+    .success:hover {
+      background: #1f5a22;
     }
 
     .row {
@@ -199,6 +208,16 @@
       overflow: auto;
     }
 
+    .export-info {
+      margin-top: 12px;
+      padding: 12px;
+      background: #eef7ee;
+      border: 1px solid #c7e0c8;
+      border-radius: 8px;
+      font-size: 13px;
+      line-height: 1.7;
+    }
+
     @media (max-width: 700px) {
       body {
         margin: 12px;
@@ -278,6 +297,7 @@
 
     <div class="top-actions">
       <button onclick="generate()">カレンダー生成</button>
+      <button class="success" onclick="exportIcs()">Yahooカレンダー用ICS出力</button>
       <button class="secondary" onclick="saveSettings()">設定を保存</button>
       <button class="secondary" onclick="resetSettings()">保存データを削除</button>
       <button class="secondary" onclick="logout()">再認証</button>
@@ -294,6 +314,11 @@
       設定はこの端末のブラウザに保存されます。
     </div>
 
+    <div class="export-info">
+      ICS出力では、その月の <strong>「行路」と「明け」だけ</strong> を終日予定として出力します。<br>
+      <strong>「休み」は出力しません。</strong>
+    </div>
+
     <div class="pattern-preview" id="patternPreview"></div>
 
     <div class="summary" id="summary"></div>
@@ -303,75 +328,21 @@
   <div id="calendar"></div>
 
   <script>
-    const STORAGE_KEY = "shiftCalendarSettings_fixedPattern_v1";
+    const STORAGE_KEY = "shiftCalendarSettings_fixedPattern_v2";
     const AUTH_SESSION_KEY = "shiftCalendarAuth";
 
     const FIXED_PATTERN = [
-      "17行路",
-      "明け",
-      "9行路",
-      "明け",
-      "休み",
-      "休み",
-      "24行路",
-      "明け",
-      "15行路",
-      "明け",
-      "休み",
-      "休み",
-      "8行路",
-      "3行路",
-      "18行路",
-      "明け",
-      "休み",
-      "休み",
-      "20行路",
-      "明け",
-      "16行路",
-      "明け",
-      "休み",
-      "休み",
-      "21行路",
-      "明け",
-      "10行路",
-      "明け",
-      "休み",
-      "休み",
-      "7行路",
-      "4行路",
-      "13行路",
-      "明け",
-      "休み",
-      "休み",
-      "26行路",
-      "明け",
-      "11行路",
-      "明け",
-      "休み",
-      "休み",
-      "25行路",
-      "明け",
-      "19行路",
-      "明け",
-      "休み",
-      "休み",
-      "6行路",
-      "1行路",
-      "23行路",
-      "明け",
-      "休み",
-      "休み",
-      "22行路",
-      "明け",
-      "12行路",
-      "明け",
-      "休み",
-      "14行路",
-      "明け",
-      "5行路",
-      "平2行路",
-      "休み",
-      "休み"
+      "17行路", "明け", "9行路", "明け", "休み", "休み",
+      "24行路", "明け", "15行路", "明け", "休み", "休み",
+      "8行路", "3行路", "18行路", "明け", "休み", "休み",
+      "20行路", "明け", "16行路", "明け", "休み", "休み",
+      "21行路", "明け", "10行路", "明け", "休み", "休み",
+      "7行路", "4行路", "13行路", "明け", "休み", "休み",
+      "26行路", "明け", "11行路", "明け", "休み", "休み",
+      "25行路", "明け", "19行路", "明け", "休み", "休み",
+      "6行路", "1行路", "23行路", "明け", "休み", "休み",
+      "22行路", "明け", "12行路", "明け", "休み",
+      "14行路", "明け", "5行路", "平2行路", "休み", "休み"
     ];
 
     function createLocalDateFromInput(value) {
@@ -402,6 +373,34 @@
         .replaceAll(">", "&gt;")
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&#039;");
+    }
+
+    function formatDateInput(date) {
+      const yyyy = date.getFullYear();
+      const mm = String(date.getMonth() + 1).padStart(2, "0");
+      const dd = String(date.getDate()).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
+    function formatDateForICS(date) {
+      const yyyy = date.getFullYear();
+      const mm = String(date.getMonth() + 1).padStart(2, "0");
+      const dd = String(date.getDate()).padStart(2, "0");
+      return `${yyyy}${mm}${dd}`;
+    }
+
+    function formatDateTimeStampUTC(date) {
+      const yyyy = date.getUTCFullYear();
+      const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
+      const dd = String(date.getUTCDate()).padStart(2, "0");
+      const hh = String(date.getUTCHours()).padStart(2, "0");
+      const mi = String(date.getUTCMinutes()).padStart(2, "0");
+      const ss = String(date.getUTCSeconds()).padStart(2, "0");
+      return `${yyyy}${mm}${dd}T${hh}${mi}${ss}Z`;
+    }
+
+    function addDays(date, days) {
+      return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
     }
 
     function saveSettings() {
@@ -447,6 +446,34 @@
       preview.textContent =
         "固定交番表（" + FIXED_PATTERN.length + "件）\n\n" +
         FIXED_PATTERN.map((item, index) => `${index + 1}. ${item}`).join("\n");
+    }
+
+    function getShiftForDate(current, baseDate, startIndex) {
+      const diff = diffDaysLocal(current, baseDate);
+      const index = ((startIndex + diff) % FIXED_PATTERN.length + FIXED_PATTERN.length) % FIXED_PATTERN.length;
+      return FIXED_PATTERN[index];
+    }
+
+    function collectMonthData(year, monthInput, baseDate, startIndexInput) {
+      const month = monthInput - 1;
+      const startIndex = startIndexInput - 1;
+      const lastDate = new Date(year, month + 1, 0).getDate();
+      const result = [];
+
+      for (let d = 1; d <= lastDate; d++) {
+        const current = new Date(year, month, d);
+        const shift = getShiftForDate(current, baseDate, startIndex);
+        const kind = classifyShift(shift);
+
+        result.push({
+          date: current,
+          day: d,
+          shift,
+          kind
+        });
+      }
+
+      return result;
     }
 
     function generate() {
@@ -499,7 +526,7 @@
 
       const firstDay = new Date(year, month, 1);
       const startDay = firstDay.getDay();
-      const lastDate = new Date(year, month + 1, 0).getDate();
+      const monthData = collectMonthData(year, monthInput, baseDate, startIndexInput);
 
       for (let i = 0; i < startDay; i++) {
         const blank = document.createElement("div");
@@ -510,28 +537,24 @@
       let routeCount = 0;
       let akeCount = 0;
       let offCount = 0;
+      let exportCount = 0;
 
-      for (let d = 1; d <= lastDate; d++) {
-        const current = new Date(year, month, d);
-        const diff = diffDaysLocal(current, baseDate);
-        const index = ((startIndex + diff) % pattern.length + pattern.length) % pattern.length;
-        const shift = pattern[index];
-        const kind = classifyShift(shift);
-
-        if (kind === "route") routeCount++;
-        if (kind === "ake") akeCount++;
-        if (kind === "off") offCount++;
+      for (const item of monthData) {
+        if (item.kind === "route") routeCount++;
+        if (item.kind === "ake") akeCount++;
+        if (item.kind === "off") offCount++;
+        if (item.kind === "route" || item.kind === "ake") exportCount++;
 
         const cell = document.createElement("div");
         cell.className = "cell";
 
         const day = document.createElement("div");
         day.className = "day";
-        day.textContent = d;
+        day.textContent = item.day;
 
         const shiftLabel = document.createElement("div");
-        shiftLabel.className = `shift ${kind}`;
-        shiftLabel.textContent = shift;
+        shiftLabel.className = `shift ${item.kind}`;
+        shiftLabel.textContent = item.shift;
 
         cell.appendChild(day);
         cell.appendChild(shiftLabel);
@@ -544,21 +567,99 @@
         `行路日数: <strong>${routeCount}</strong> 日 / ` +
         `明け日数: <strong>${akeCount}</strong> 日 / ` +
         `休日日数: <strong>${offCount}</strong> 日 / ` +
+        `ICS出力件数: <strong>${exportCount}</strong> 件 / ` +
         `固定交番表件数: <strong>${pattern.length}</strong> 件`;
 
       calendarEl.appendChild(grid);
     }
 
-    function setDefaultValues() {
-      const today = new Date();
-      const yyyy = today.getFullYear();
-      const mm = String(today.getMonth() + 1).padStart(2, "0");
-      const dd = String(today.getDate()).padStart(2, "0");
+    function buildICS(monthData, year, monthInput) {
+      const lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//Shift Calendar//JP",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH",
+        "X-WR-CALNAME:シフト出力",
+        "X-WR-TIMEZONE:Asia/Tokyo"
+      ];
 
-      document.getElementById("year").value = yyyy;
-      document.getElementById("month").value = today.getMonth() + 1;
-      document.getElementById("baseDate").value = `${yyyy}-${mm}-${dd}`;
-      document.getElementById("startIndex").value = 1;
+      const nowStamp = formatDateTimeStampUTC(new Date());
+
+      for (const item of monthData) {
+        if (!(item.kind === "route" || item.kind === "ake")) continue;
+
+        const start = formatDateForICS(item.date);
+        const end = formatDateForICS(addDays(item.date, 1));
+        const uid = `${start}-${item.shift}-${year}${String(monthInput).padStart(2, "0")}@shift-calendar`;
+
+        lines.push("BEGIN:VEVENT");
+        lines.push(`UID:${uid}`);
+        lines.push(`DTSTAMP:${nowStamp}`);
+        lines.push(`DTSTART;VALUE=DATE:${start}`);
+        lines.push(`DTEND;VALUE=DATE:${end}`);
+        lines.push(`SUMMARY:${item.shift}`);
+        lines.push("END:VEVENT");
+      }
+
+      lines.push("END:VCALENDAR");
+      return lines.join("\r\n");
+    }
+
+    function downloadTextFile(filename, content, mimeType) {
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function exportIcs() {
+      const errorEl = document.getElementById("error");
+      errorEl.textContent = "";
+
+      const year = parseInt(document.getElementById("year").value, 10);
+      const monthInput = parseInt(document.getElementById("month").value, 10);
+      const baseDate = createLocalDateFromInput(document.getElementById("baseDate").value);
+      const startIndexInput = parseInt(document.getElementById("startIndex").value, 10);
+
+      if (!Number.isInteger(year) || !Number.isInteger(monthInput) || monthInput < 1 || monthInput > 12) {
+        errorEl.textContent = "年または月が不正です。";
+        return;
+      }
+
+      if (!baseDate) {
+        errorEl.textContent = "基準日を正しく入力してください。";
+        return;
+      }
+
+      if (!Number.isInteger(startIndexInput) || startIndexInput < 1 || startIndexInput > FIXED_PATTERN.length) {
+        errorEl.textContent = "開始交番番号が不正です。";
+        return;
+      }
+
+      const monthData = collectMonthData(year, monthInput, baseDate, startIndexInput);
+      const exportTargetCount = monthData.filter(item => item.kind === "route" || item.kind === "ake").length;
+
+      if (exportTargetCount === 0) {
+        errorEl.textContent = "出力対象（行路・明け）がありません。";
+        return;
+      }
+
+      const ics = buildICS(monthData, year, monthInput);
+      const fileName = `shift_${year}_${String(monthInput).padStart(2, "0")}.ics`;
+      downloadTextFile(fileName, ics, "text/calendar;charset=utf-8");
+    }
+
+    function setDefaultValues() {
+      document.getElementById("year").value = 2026;
+      document.getElementById("month").value = 3;
+      document.getElementById("baseDate").value = "2026-03-14";
+      document.getElementById("startIndex").value = 53;
     }
 
     setDefaultValues();
