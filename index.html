@@ -118,10 +118,12 @@
     }
 
     .cell {
+      position: relative;
       background: #fff;
       min-height: 96px;
       padding: 6px;
       font-size: 14px;
+      overflow: visible;
     }
 
     .header {
@@ -134,6 +136,8 @@
     .day {
       font-weight: bold;
       margin-bottom: 6px;
+      position: relative;
+      z-index: 3;
     }
 
     .shift {
@@ -144,6 +148,8 @@
       font-size: 12px;
       line-height: 1.4;
       word-break: break-word;
+      position: relative;
+      z-index: 2;
     }
 
     .route {
@@ -163,6 +169,24 @@
 
     .blank {
       background: #fafafa;
+    }
+
+    .bar {
+      position: relative;
+      z-index: 2;
+      margin-top: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      line-height: 1.4;
+      white-space: nowrap;
+      overflow: hidden;
+      box-sizing: border-box;
+    }
+
+    .bar-route {
+      background: #d0e7ff;
+      color: #0d47a1;
     }
 
     .legend {
@@ -187,7 +211,6 @@
     }
 
     .dot-route { background: #d0e7ff; }
-    .dot-ake { background: #fff3cd; }
     .dot-off { background: #d4f5d4; }
 
     .top-actions {
@@ -239,6 +262,11 @@
       .shift {
         font-size: 11px;
         padding: 2px 6px;
+      }
+
+      .bar {
+        font-size: 11px;
+        padding: 3px 8px;
       }
 
       input[type="number"],
@@ -297,15 +325,14 @@
 
     <div class="top-actions">
       <button onclick="generate()">カレンダー生成</button>
-      <button class="success" onclick="exportIcs()">Yahooカレンダー用ICS出力</button>
+      <button class="success" onclick="exportIcs()">ICS出力</button>
       <button class="secondary" onclick="saveSettings()">設定を保存</button>
       <button class="secondary" onclick="resetSettings()">保存データを削除</button>
       <button class="secondary" onclick="logout()">再認証</button>
     </div>
 
     <div class="legend">
-      <span><i class="dot dot-route"></i> 行路</span>
-      <span><i class="dot dot-ake"></i> 行路継続（明け）</span>
+      <span><i class="dot dot-route"></i> 行路（2日帯表示）</span>
       <span><i class="dot dot-off"></i> 休み</span>
     </div>
 
@@ -315,8 +342,8 @@
     </div>
 
     <div class="export-info">
-      ICS出力では、<strong>行路開始日を1件のイベントとして出力</strong>します。<br>
-      翌日が明けなら、<strong>2日間の予定として「○○行路」</strong>を出力します。<br>
+      ICS出力では、行路開始日を1件のイベントとして出力します。<br>
+      翌日が明けなら、<strong>2日間の予定として「○○行路」</strong> を出力します。<br>
       明け単独イベントと休みは出力しません。
     </div>
 
@@ -329,8 +356,9 @@
   <div id="calendar"></div>
 
   <script>
-    const STORAGE_KEY = "shiftCalendarSettings_final_v2";
+    const STORAGE_KEY = "shiftCalendarSettings_bar_v1";
     const AUTH_SESSION_KEY = "shiftCalendarAuth";
+    const CELL_GAP_PX = 2;
 
     const FIXED_PATTERN = [
       "17行路", "明け", "9行路", "明け", "休み", "休み",
@@ -365,10 +393,6 @@
       if (shift === "明け") return "ake";
       if (shift.includes("休")) return "off";
       return "route";
-    }
-
-    function isRouteShift(shift) {
-      return classifyShift(shift) === "route";
     }
 
     function escapeHtml(text) {
@@ -469,7 +493,9 @@
           rawShift,
           kind,
           displayBase: rawShift,
-          displayText: rawShift
+          displayText: rawShift,
+          isTwoDayStart: false,
+          isTwoDayFollower: false
         });
       }
 
@@ -494,7 +520,7 @@
             }
           }
           item.displayBase = inherited;
-          item.displayText = inherited === "明け" ? "明け" : `${inherited}（明け）`;
+          item.displayText = inherited;
           continue;
         }
 
@@ -502,20 +528,56 @@
         item.displayText = item.rawShift;
       }
 
+      for (let i = 0; i < result.length; i++) {
+        const item = result[i];
+        const next = result[i + 1];
+
+        if (
+          item.kind === "route" &&
+          next &&
+          next.kind === "ake" &&
+          next.displayBase === item.displayBase
+        ) {
+          item.isTwoDayStart = true;
+          next.isTwoDayFollower = true;
+        }
+      }
+
       return result;
     }
 
-    function countExportEvents(monthData, baseDate, startIndexInput) {
+    function countExportEvents(monthData) {
       let count = 0;
-      const startIndexZeroBased = startIndexInput - 1;
+      for (const item of monthData) {
+        if (item.kind === "route") count++;
+      }
+      return count;
+    }
 
-      for (let i = 0; i < monthData.length; i++) {
-        const item = monthData[i];
-        if (item.kind !== "route") continue;
-        count++;
+    function createWeekChunks(monthData, firstWeekday) {
+      const weeks = [];
+      let pointer = 0;
+      const totalDays = monthData.length;
+      let weekIndex = 0;
+
+      while (pointer < totalDays) {
+        const week = [];
+        for (let weekday = 0; weekday < 7; weekday++) {
+          const absoluteCellIndex = weekIndex * 7 + weekday;
+          if (absoluteCellIndex < firstWeekday || pointer >= totalDays) {
+            week.push({ empty: true, key: `blank-${weekIndex}-${weekday}` });
+          } else {
+            const item = monthData[pointer];
+            item.weekday = weekday;
+            week.push(item);
+            pointer++;
+          }
+        }
+        weeks.push(week);
+        weekIndex++;
       }
 
-      return count;
+      return weeks;
     }
 
     function generate() {
@@ -554,53 +616,79 @@
         return;
       }
 
-      const week = ["日", "月", "火", "水", "木", "金", "土"];
+      const firstDay = new Date(year, month, 1);
+      const firstWeekday = firstDay.getDay();
+      const monthData = collectMonthData(year, monthInput, baseDate, startIndexInput);
+      const weeks = createWeekChunks(monthData, firstWeekday);
+
       const grid = document.createElement("div");
       grid.className = "calendar";
 
-      for (const w of week) {
+      const weekNames = ["日", "月", "火", "水", "木", "金", "土"];
+      for (const w of weekNames) {
         const header = document.createElement("div");
         header.className = "cell header";
         header.textContent = w;
         grid.appendChild(header);
       }
 
-      const firstDay = new Date(year, month, 1);
-      const startDay = firstDay.getDay();
-      const monthData = collectMonthData(year, monthInput, baseDate, startIndexInput);
-
-      for (let i = 0; i < startDay; i++) {
-        const blank = document.createElement("div");
-        blank.className = "cell blank";
-        grid.appendChild(blank);
-      }
-
       let routeCount = 0;
       let akeCount = 0;
       let offCount = 0;
 
-      for (const item of monthData) {
-        if (item.kind === "route") routeCount++;
-        if (item.kind === "ake") akeCount++;
-        if (item.kind === "off") offCount++;
+      for (const week of weeks) {
+        for (let weekday = 0; weekday < 7; weekday++) {
+          const item = week[weekday];
 
-        const cell = document.createElement("div");
-        cell.className = "cell";
+          if (item.empty) {
+            const blank = document.createElement("div");
+            blank.className = "cell blank";
+            grid.appendChild(blank);
+            continue;
+          }
 
-        const day = document.createElement("div");
-        day.className = "day";
-        day.textContent = item.day;
+          if (item.kind === "route") routeCount++;
+          if (item.kind === "ake") akeCount++;
+          if (item.kind === "off") offCount++;
 
-        const shiftLabel = document.createElement("div");
-        shiftLabel.className = `shift ${item.kind}`;
-        shiftLabel.textContent = item.displayText;
+          const cell = document.createElement("div");
+          cell.className = "cell";
 
-        cell.appendChild(day);
-        cell.appendChild(shiftLabel);
-        grid.appendChild(cell);
+          const day = document.createElement("div");
+          day.className = "day";
+          day.textContent = item.day;
+          cell.appendChild(day);
+
+          if (item.kind === "off") {
+            const shiftLabel = document.createElement("div");
+            shiftLabel.className = "shift off";
+            shiftLabel.textContent = item.displayText;
+            cell.appendChild(shiftLabel);
+          } else if (item.isTwoDayStart) {
+            const bar = document.createElement("div");
+            bar.className = "bar bar-route";
+            bar.textContent = item.displayBase;
+
+            const availableCells = Math.min(2, 7 - weekday);
+            const widthPercent = availableCells * 100;
+            const extraGap = (availableCells - 1) * CELL_GAP_PX;
+            bar.style.width = `calc(${widthPercent}% + ${extraGap}px)`;
+
+            cell.appendChild(bar);
+          } else if (item.isTwoDayFollower) {
+            // 2日帯の後半日は何も表示しない
+          } else {
+            const shiftLabel = document.createElement("div");
+            shiftLabel.className = "shift route";
+            shiftLabel.textContent = item.displayText;
+            cell.appendChild(shiftLabel);
+          }
+
+          grid.appendChild(cell);
+        }
       }
 
-      const exportEventCount = countExportEvents(monthData, baseDate, startIndexInput);
+      const exportEventCount = countExportEvents(monthData);
 
       summaryEl.innerHTML =
         `基準日 <strong>${escapeHtml(document.getElementById("baseDate").value)}</strong> は ` +
@@ -700,7 +788,7 @@
       }
 
       const monthData = collectMonthData(year, monthInput, baseDate, startIndexInput);
-      const exportTargetCount = countExportEvents(monthData, baseDate, startIndexInput);
+      const exportTargetCount = countExportEvents(monthData);
 
       if (exportTargetCount === 0) {
         errorEl.textContent = "出力対象イベントがありません。";
