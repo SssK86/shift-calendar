@@ -343,7 +343,7 @@
   <div id="calendar"></div>
 
   <script>
-    const STORAGE_KEY = "shiftCalendarSettings_jpHoliday_v1";
+    const STORAGE_KEY = "shiftCalendarSettings_jpHoliday_v2";
     const AUTH_SESSION_KEY = "shiftCalendarAuth";
     const CELL_GAP_PX = 2;
 
@@ -415,6 +415,15 @@
       { kind: "off" }
     ];
 
+    function escapeHtml(text) {
+      return String(text)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
     function createLocalDateFromInput(value) {
       if (!value) return null;
       const parts = value.split("-").map(Number);
@@ -463,7 +472,6 @@
         holidays.set(dateKey(new Date(year, monthIndex, day)), name);
       }
 
-      // 固定日
       add(0, 1, "元日");
       add(1, 11, "建国記念の日");
 
@@ -482,14 +490,12 @@
       add(10, 23, "勤労感謝の日");
       add(8, autumnEquinoxDay(year), "秋分の日");
 
-      // 成人の日
       if (year >= 2000) {
         holidays.set(dateKey(nthWeekdayOfMonth(year, 0, 1, 2)), "成人の日");
       } else if (year >= 1949) {
         add(0, 15, "成人の日");
       }
 
-      // 海の日
       if (year === 2020) {
         add(6, 23, "海の日");
       } else if (year === 2021) {
@@ -500,7 +506,6 @@
         add(6, 20, "海の日");
       }
 
-      // 山の日
       if (year === 2020) {
         add(7, 10, "山の日");
       } else if (year === 2021) {
@@ -509,14 +514,12 @@
         add(7, 11, "山の日");
       }
 
-      // 敬老の日
       if (year >= 2003) {
         holidays.set(dateKey(nthWeekdayOfMonth(year, 8, 1, 3)), "敬老の日");
       } else if (year >= 1966) {
         add(8, 15, "敬老の日");
       }
 
-      // 体育の日 / スポーツの日
       if (year === 2020) {
         add(6, 24, "スポーツの日");
       } else if (year === 2021) {
@@ -528,14 +531,6 @@
       } else if (year >= 1966) {
         add(9, 10, "体育の日");
       }
-
-      // 国民の休日（祝日に挟まれた平日）
-      const allDates = [];
-      for (const key of holidays.keys()) {
-        const [y, m, d] = key.split("-").map(Number);
-        allDates.push(new Date(y, m - 1, d));
-      }
-      allDates.sort((a, b) => a - b);
 
       for (let monthIndex = 0; monthIndex < 12; monthIndex++) {
         const lastDay = new Date(year, monthIndex + 1, 0).getDate();
@@ -552,7 +547,6 @@
         }
       }
 
-      // 振替休日（日曜に祝日が当たった場合、その後最初の非祝日）
       const holidayKeys = Array.from(holidays.keys()).sort();
       for (const key of holidayKeys) {
         const [y, m, d] = key.split("-").map(Number);
@@ -609,7 +603,6 @@
         baseDate: document.getElementById("baseDate").value,
         startIndex: document.getElementById("startIndex").value
       };
-
       localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
       alert("設定を保存しました。");
     }
@@ -882,7 +875,7 @@
 
             cell.appendChild(bar);
           } else if (item.isTwoDayFollower) {
-            // 2日帯の後半日は表示しない
+            // 帯の後半日は表示しない
           } else {
             const bar = document.createElement("div");
             bar.className = "bar";
@@ -945,7 +938,6 @@
         } else {
           const nextDate = addDays(item.date, 1);
           const nextPattern = getPatternItemForDate(nextDate, baseDate, startIndexZeroBased);
-
           if (nextPattern.kind === "ake") {
             isTwoDayEvent = true;
           }
