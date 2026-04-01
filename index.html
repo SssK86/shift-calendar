@@ -156,17 +156,25 @@
       display: inline-block;
       margin-top: 4px;
       padding: 3px 8px;
-      border-radius: 999px;
+      border-radius: 12px;
       font-size: 12px;
-      line-height: 1.4;
+      line-height: 1.5;
       word-break: break-word;
+      white-space: normal;
       position: relative;
       z-index: 2;
+      max-width: 100%;
+      box-sizing: border-box;
     }
 
     .off {
       background: #d4f5d4;
       color: #1b5e20;
+    }
+
+    .ake {
+      background: #fff3cd;
+      color: #7a5200;
     }
 
     .blank {
@@ -183,9 +191,11 @@
       line-height: 1.4;
       white-space: nowrap;
       overflow: hidden;
+      text-overflow: ellipsis;
       box-sizing: border-box;
       background: #d0e7ff;
       color: #0d47a1;
+      max-width: none;
     }
 
     .legend {
@@ -274,16 +284,17 @@
       }
     }
   </style>
-<script>
-document.documentElement.classList.add("auth-pending");
 
-(function () {
-  const PASSWORD = "1223";
-  const SESSION_KEY = "shiftCalendarAuth";
+  <script>
+    document.documentElement.classList.add("auth-pending");
 
-  function deny() {
-    document.open();
-    document.write(`<!DOCTYPE html>
+    (function () {
+      const PASSWORD = "1223";
+      const SESSION_KEY = "shiftCalendarAuth";
+
+      function deny() {
+        document.open();
+        document.write(`<!DOCTYPE html>
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -302,25 +313,25 @@ body {
 </head>
 <body>アクセスできません。</body>
 </html>`);
-    document.close();
-  }
+        document.close();
+      }
 
-  if (sessionStorage.getItem(SESSION_KEY) === "ok") {
-    document.documentElement.classList.remove("auth-pending");
-    return;
-  }
+      if (sessionStorage.getItem(SESSION_KEY) === "ok") {
+        document.documentElement.classList.remove("auth-pending");
+        return;
+      }
 
-  const input = prompt("パスワードを入力してください");
+      const input = prompt("パスワードを入力してください");
 
-  if (input !== PASSWORD) {
-    deny();
-    return;
-  }
+      if (input !== PASSWORD) {
+        deny();
+        return;
+      }
 
-  sessionStorage.setItem(SESSION_KEY, "ok");
-  document.documentElement.classList.remove("auth-pending");
-})();
-</script>
+      sessionStorage.setItem(SESSION_KEY, "ok");
+      document.documentElement.classList.remove("auth-pending");
+    })();
+  </script>
 </head>
 <body>
 
@@ -358,7 +369,7 @@ body {
     </div>
 
     <div class="legend">
-      <span><i class="dot dot-route"></i> 行路（2日帯表示）</span>
+      <span><i class="dot dot-route"></i> 行路（同じ週内のみ2日帯表示）</span>
       <span><i class="dot dot-off"></i> 休み</span>
     </div>
 
@@ -751,6 +762,7 @@ body {
 
         if (patternItem.kind === "route") {
           displayBase = isHoliday ? patternItem.holiday : patternItem.weekday;
+
           if (displayBase === "休み") {
             effectiveKind = "off";
             displayText = "休み";
@@ -774,8 +786,8 @@ body {
           isHoliday,
           displayBase,
           displayText,
-          isTwoDayStart: false,
-          isTwoDayFollower: false
+          mergeWithNext: false,
+          hiddenAsMergedFollower: false
         });
       }
 
@@ -783,7 +795,7 @@ body {
         const item = result[i];
 
         if (item.effectiveKind === "ake") {
-          let inherited = "明け";
+          let inherited = "";
           for (let j = i - 1; j >= 0; j--) {
             if (result[j].effectiveKind === "route") {
               inherited = result[j].displayBase;
@@ -793,8 +805,9 @@ body {
               break;
             }
           }
+
           item.displayBase = inherited;
-          item.displayText = inherited;
+          item.displayText = inherited ? `${inherited} 明け` : "明け";
         }
       }
 
@@ -808,8 +821,11 @@ body {
           next.effectiveKind === "ake" &&
           next.displayBase === item.displayBase
         ) {
-          item.isTwoDayStart = true;
-          next.isTwoDayFollower = true;
+          const isSameWeekRow = item.date.getDay() !== 6;
+          if (isSameWeekRow) {
+            item.mergeWithNext = true;
+            next.hiddenAsMergedFollower = true;
+          }
         }
       }
 
@@ -945,20 +961,23 @@ body {
             shiftLabel.className = "shift off";
             shiftLabel.textContent = item.displayText;
             cell.appendChild(shiftLabel);
-          } else if (item.isTwoDayStart) {
+
+          } else if (item.effectiveKind === "ake") {
+            if (!item.hiddenAsMergedFollower) {
+              const akeLabel = document.createElement("div");
+              akeLabel.className = "shift ake";
+              akeLabel.textContent = item.displayText;
+              cell.appendChild(akeLabel);
+            }
+
+          } else if (item.effectiveKind === "route" && item.mergeWithNext) {
             const bar = document.createElement("div");
             bar.className = "bar";
             bar.textContent = item.displayBase;
-
-            const availableCells = Math.min(2, 7 - weekday);
-            const widthPercent = availableCells * 100;
-            const extraGap = (availableCells - 1) * CELL_GAP_PX;
-            bar.style.width = `calc(${widthPercent}% + ${extraGap}px)`;
-
+            bar.style.width = `calc(200% + ${CELL_GAP_PX}px)`;
             cell.appendChild(bar);
-          } else if (item.isTwoDayFollower) {
-            // 帯の後半日は表示しない
-          } else {
+
+          } else if (item.effectiveKind === "route") {
             const bar = document.createElement("div");
             bar.className = "bar";
             bar.textContent = item.displayBase;
