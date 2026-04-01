@@ -5,7 +5,12 @@
   <title>交番表シフトカレンダー</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="robots" content="noindex,nofollow,noarchive,nosnippet">
+
   <style>
+    html.auth-pending body {
+      display: none !important;
+    }
+
     body {
       font-family: Arial, sans-serif;
       margin: 20px;
@@ -271,22 +276,35 @@
   </style>
 
   <script>
+    document.documentElement.classList.add("auth-pending");
+  </script>
+
+  <script>
     (function () {
       const PASSWORD = "1223";
       const SESSION_KEY = "shiftCalendarAuth";
 
-      if (sessionStorage.getItem(SESSION_KEY) === "ok") return;
-
-      const input = prompt("パスワードを入力してください");
-      if (input !== PASSWORD) {
-        document.documentElement.innerHTML =
-          "<head><meta charset='UTF-8'><title>アクセス不可</title></head>" +
-          "<body style='font-family:Arial,sans-serif;padding:40px;background:#f5f5f5;'>" +
-          "<h2>アクセスできません</h2><p>パスワードが違います。</p></body>";
+      function deny() {
+        document.head.innerHTML = '<meta charset="UTF-8"><title>アクセス不可</title>';
+        document.body.innerHTML = "アクセスできません。";
+        document.documentElement.className = "";
         throw new Error("Unauthorized");
       }
 
+      if (sessionStorage.getItem(SESSION_KEY) === "ok") {
+        document.documentElement.classList.remove("auth-pending");
+        return;
+      }
+
+      const input = prompt("パスワードを入力してください");
+
+      if (input !== PASSWORD) {
+        deny();
+        return;
+      }
+
       sessionStorage.setItem(SESSION_KEY, "ok");
+      document.documentElement.classList.remove("auth-pending");
     })();
   </script>
 </head>
@@ -321,7 +339,7 @@
       <button onclick="generate()">カレンダー生成</button>
       <button class="success" onclick="exportIcs()">ICS出力</button>
       <button class="secondary" onclick="saveSettings()">設定を保存</button>
-      <button class="secondary" onclick="resetSettings()">保存データを削除</button>
+      <button class="secondary" onclick="resetSettings()">設定を削除</button>
       <button class="secondary" onclick="logout()">再認証</button>
     </div>
 
@@ -597,9 +615,7 @@
             holidaySourceInfo = `${year}年祝日: キャッシュ使用`;
             return new Map(Object.entries(cached.data));
           }
-        } catch {
-          // ignore broken cache
-        }
+        } catch {}
       }
 
       try {
@@ -668,7 +684,7 @@
 
     function resetSettings() {
       localStorage.removeItem(STORAGE_KEY);
-      alert("保存データを削除しました。ページを再読込すると初期値に戻ります。");
+      alert("設定を削除しました。ページを再読込すると初期値に戻ります。");
     }
 
     function logout() {
