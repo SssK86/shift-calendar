@@ -165,6 +165,13 @@
       background: #fafafa;
     }
 
+    .note {
+      margin-top: 4px;
+      font-size: 11px;
+      color: #666;
+      line-height: 1.3;
+    }
+
     .legend {
       display: flex;
       gap: 12px;
@@ -297,7 +304,7 @@
 
     <div class="top-actions">
       <button onclick="generate()">カレンダー生成</button>
-      <button class="success" onclick="exportIcs()">ICS出力</button>
+      <button class="success" onclick="exportIcs()">Yahooカレンダー用ICS出力</button>
       <button class="secondary" onclick="saveSettings()">設定を保存</button>
       <button class="secondary" onclick="resetSettings()">保存データを削除</button>
       <button class="secondary" onclick="logout()">再認証</button>
@@ -305,7 +312,7 @@
 
     <div class="legend">
       <span><i class="dot dot-route"></i> 行路</span>
-      <span><i class="dot dot-ake"></i> 明け</span>
+      <span><i class="dot dot-ake"></i> 行路継続（明け）</span>
       <span><i class="dot dot-off"></i> 休み</span>
     </div>
 
@@ -315,8 +322,9 @@
     </div>
 
     <div class="export-info">
-      ICS出力では、その月の <strong>「行路」と「明け」だけ</strong> を終日予定として出力します。<br>
-      <strong>「休み」は出力しません。</strong>
+      ICS出力では、その月の <strong>行路</strong> と <strong>明け</strong> だけを終日予定として出力します。<br>
+      明け日は <strong>前日の行路名を継承して「○○（明け）」</strong> で出力します。<br>
+      <strong>休みは出力しません。</strong>
     </div>
 
     <div class="pattern-preview" id="patternPreview"></div>
@@ -328,7 +336,7 @@
   <div id="calendar"></div>
 
   <script>
-    const STORAGE_KEY = "shiftCalendarSettings_fixedPattern_v2";
+    const STORAGE_KEY = "shiftCalendarSettings_final_v1";
     const AUTH_SESSION_KEY = "shiftCalendarAuth";
 
     const FIXED_PATTERN = [
@@ -366,6 +374,14 @@
       return "route";
     }
 
+    function isRouteShift(shift) {
+      return classifyShift(shift) === "route";
+    }
+
+    function isAkeShift(shift) {
+      return classifyShift(shift) === "ake";
+    }
+
     function escapeHtml(text) {
       return String(text)
         .replaceAll("&", "&amp;")
@@ -373,13 +389,6 @@
         .replaceAll(">", "&gt;")
         .replaceAll('"', "&quot;")
         .replaceAll("'", "&#039;");
-    }
-
-    function formatDateInput(date) {
-      const yyyy = date.getFullYear();
-      const mm = String(date.getMonth() + 1).padStart(2, "0");
-      const dd = String(date.getDate()).padStart(2, "0");
-      return `${yyyy}-${mm}-${dd}`;
     }
 
     function formatDateForICS(date) {
@@ -454,6 +463,24 @@
       return FIXED_PATTERN[index];
     }
 
+    function resolveDisplayForAke(result, currentIndex) {
+      for (let i = currentIndex - 1; i >= 0; i--) {
+        if (isRouteShift(result[i].rawShift)) {
+          return {
+            displayShift: result[i].displayShiftBase || result[i].rawShift,
+            displayText: (result[i].displayShiftBase || result[i].rawShift) + "（明け）"
+          };
+        }
+        if (classifyShift(result[i].rawShift) === "off") {
+          break;
+        }
+      }
+      return {
+        displayShift: "明け",
+        displayText: "明け"
+      };
+    }
+
     function collectMonthData(year, monthInput, baseDate, startIndexInput) {
       const month = monthInput - 1;
       const startIndex = startIndexInput - 1;
@@ -462,15 +489,41 @@
 
       for (let d = 1; d <= lastDate; d++) {
         const current = new Date(year, month, d);
-        const shift = getShiftForDate(current, baseDate, startIndex);
-        const kind = classifyShift(shift);
+        const rawShift = getShiftForDate(current, baseDate, startIndex);
+        const kind = classifyShift(rawShift);
 
         result.push({
           date: current,
           day: d,
-          shift,
-          kind
+          rawShift,
+          kind,
+          displayShiftBase: rawShift,
+          displayText: rawShift,
+          exportText: rawShift,
+          note: ""
         });
+      }
+
+      for (let i = 0; i < result.length; i++) {
+        const item = result[i];
+
+        if (item.kind === "route") {
+          item.displayShiftBase = item.rawShift;
+          item.displayText = item.rawShift;
+          item.exportText = item.rawShift;
+          item.note = "";
+        } else if (item.kind === "ake") {
+          const resolved = resolveDisplayForAke(result, i);
+          item.displayShiftBase = resolved.displayShift;
+          item.displayText = resolved.displayText;
+          item.exportText = resolved.displayText;
+          item.note = "明け";
+        } else {
+          item.displayShiftBase = item.rawShift;
+          item.displayText = item.rawShift;
+          item.exportText = "";
+          item.note = "";
+        }
       }
 
       return result;
@@ -491,7 +544,6 @@
       const baseDate = createLocalDateFromInput(document.getElementById("baseDate").value);
       const startIndexInput = parseInt(document.getElementById("startIndex").value, 10);
       const startIndex = startIndexInput - 1;
-      const pattern = FIXED_PATTERN;
 
       if (!Number.isInteger(year) || !Number.isInteger(monthInput) || monthInput < 1 || monthInput > 12) {
         errorEl.textContent = "年または月が不正です。";
@@ -508,7 +560,7 @@
         return;
       }
 
-      if (startIndex >= pattern.length) {
+      if (startIndex >= FIXED_PATTERN.length) {
         errorEl.textContent = "開始交番番号が交番表の件数を超えています。";
         return;
       }
@@ -554,21 +606,25 @@
 
         const shiftLabel = document.createElement("div");
         shiftLabel.className = `shift ${item.kind}`;
-        shiftLabel.textContent = item.shift;
+        shiftLabel.textContent = item.displayText;
 
         cell.appendChild(day);
         cell.appendChild(shiftLabel);
+
         grid.appendChild(cell);
       }
 
+      const startLabel = monthData.length > 0 ? monthData[0].displayText : FIXED_PATTERN[startIndex];
+
       summaryEl.innerHTML =
         `基準日 <strong>${escapeHtml(document.getElementById("baseDate").value)}</strong> は ` +
-        `<strong>${escapeHtml(pattern[startIndex])}</strong> として計算しています。<br>` +
+        `<strong>${escapeHtml(FIXED_PATTERN[startIndex])}</strong> を基準に計算しています。<br>` +
+        `表示上の先頭勤務: <strong>${escapeHtml(startLabel)}</strong><br>` +
         `行路日数: <strong>${routeCount}</strong> 日 / ` +
         `明け日数: <strong>${akeCount}</strong> 日 / ` +
         `休日日数: <strong>${offCount}</strong> 日 / ` +
         `ICS出力件数: <strong>${exportCount}</strong> 件 / ` +
-        `固定交番表件数: <strong>${pattern.length}</strong> 件`;
+        `固定交番表件数: <strong>${FIXED_PATTERN.length}</strong> 件`;
 
       calendarEl.appendChild(grid);
     }
@@ -591,14 +647,14 @@
 
         const start = formatDateForICS(item.date);
         const end = formatDateForICS(addDays(item.date, 1));
-        const uid = `${start}-${item.shift}-${year}${String(monthInput).padStart(2, "0")}@shift-calendar`;
+        const uid = `${start}-${item.exportText}-${year}${String(monthInput).padStart(2, "0")}@shift-calendar`;
 
         lines.push("BEGIN:VEVENT");
         lines.push(`UID:${uid}`);
         lines.push(`DTSTAMP:${nowStamp}`);
         lines.push(`DTSTART;VALUE=DATE:${start}`);
         lines.push(`DTEND;VALUE=DATE:${end}`);
-        lines.push(`SUMMARY:${item.shift}`);
+        lines.push(`SUMMARY:${item.exportText}`);
         lines.push("END:VEVENT");
       }
 
