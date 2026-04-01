@@ -109,6 +109,13 @@
       line-height: 1.6;
     }
 
+    .status {
+      color: #444;
+      font-size: 13px;
+      margin-top: 6px;
+      line-height: 1.6;
+    }
+
     .calendar {
       display: grid;
       grid-template-columns: repeat(7, 1fr);
@@ -325,8 +332,10 @@
 
     <div class="notice">
       交番表は固定です。入力変更はできません。<br>
-      土日祝は休日扱いです。祝日判定は日本の祝日・振替休日・国民の休日ルールで計算します。
+      祝日判定は Holidays JP API を優先し、失敗時は内蔵ロジックに切り替えます。
     </div>
+
+    <div class="status" id="holidaySourceStatus"></div>
 
     <div class="export-info">
       ICS出力では、行路開始日を1件のイベントとして出力します。<br>
@@ -343,9 +352,12 @@
   <div id="calendar"></div>
 
   <script>
-    const STORAGE_KEY = "shiftCalendarSettings_jpHoliday_v2";
+    const STORAGE_KEY = "shiftCalendarSettings_holidaysjp_v1";
+    const HOLIDAY_CACHE_PREFIX = "holidaysjp_cache_";
     const AUTH_SESSION_KEY = "shiftCalendarAuth";
     const CELL_GAP_PX = 2;
+
+    let holidaySourceInfo = "";
 
     const FIXED_PATTERN = [
       { kind: "route", weekday: "平17行路", holiday: "休17行路" },
@@ -465,7 +477,7 @@
       return Math.floor(24.2488 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
     }
 
-    function getJapaneseNationalHolidayMap(year) {
+    function getJapaneseNationalHolidayMapFallback(year) {
       const holidays = new Map();
 
       function add(monthIndex, day, name) {
@@ -564,15 +576,46 @@
       return holidays;
     }
 
-    function isJapanesePublicHoliday(date) {
-      const map = getJapaneseNationalHolidayMap(date.getFullYear());
-      return map.has(dateKey(date));
+    async function fetchHolidayMapFromApi(year) {
+      const url = `https://holidays-jp.github.io/api/v1/${year}/date.json`;
+      const response = await fetch(url, { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const data = await response.json();
+      return new Map(Object.entries(data));
     }
 
-    function isHolidayForShift(date) {
-      const day = date.getDay();
-      if (day === 0 || day === 6) return true;
-      return isJapanesePublicHoliday(date);
+    async function getHolidayMap(year) {
+      const cacheKey = `${HOLIDAY_CACHE_PREFIX}${year}`;
+      const cachedRaw = localStorage.getItem(cacheKey);
+
+      if (cachedRaw) {
+        try {
+          const cached = JSON.parse(cachedRaw);
+          if (cached && cached.data) {
+            holidaySourceInfo = `${year}年祝日: キャッシュ使用`;
+            return new Map(Object.entries(cached.data));
+          }
+        } catch {
+          // ignore broken cache
+        }
+      }
+
+      try {
+        const apiMap = await fetchHolidayMapFromApi(year);
+        const plain = Object.fromEntries(apiMap.entries());
+        localStorage.setItem(cacheKey, JSON.stringify({
+          fetchedAt: new Date().toISOString(),
+          data: plain
+        }));
+        holidaySourceInfo = `${year}年祝日: Holidays JP API`;
+        return apiMap;
+      } catch {
+        const fallbackMap = getJapaneseNationalHolidayMapFallback(year);
+        holidaySourceInfo = `${year}年祝日: 内蔵ロジック`;
+        return fallbackMap;
+      }
     }
 
     function formatDateForICS(date) {
@@ -661,7 +704,7 @@
       return FIXED_PATTERN[index];
     }
 
-    function collectMonthData(year, monthInput, baseDate, startIndexInput) {
+    function collectMonthData(year, monthInput, baseDate, startIndexInput, holidayMap) {
       const month = monthInput - 1;
       const startIndexZeroBased = startIndexInput - 1;
       const lastDate = new Date(year, month + 1, 0).getDate();
@@ -670,7 +713,7 @@
       for (let d = 1; d <= lastDate; d++) {
         const current = new Date(year, month, d);
         const patternItem = getPatternItemForDate(current, baseDate, startIndexZeroBased);
-        const isHoliday = isHolidayForShift(current);
+        const isHoliday = current.getDay() === 0 || current.getDay() === 6 || holidayMap.has(dateKey(current));
 
         let effectiveKind = patternItem.kind;
         let displayBase = "";
@@ -777,14 +820,16 @@
       return weeks;
     }
 
-    function generate() {
+    async function generate() {
       const errorEl = document.getElementById("error");
       const summaryEl = document.getElementById("summary");
       const calendarEl = document.getElementById("calendar");
+      const holidaySourceStatusEl = document.getElementById("holidaySourceStatus");
 
       errorEl.textContent = "";
       summaryEl.innerHTML = "";
       calendarEl.innerHTML = "";
+      holidaySourceStatusEl.textContent = "祝日データを確認中...";
 
       const year = parseInt(document.getElementById("year").value, 10);
       const monthInput = parseInt(document.getElementById("month").value, 10);
@@ -795,27 +840,34 @@
 
       if (!Number.isInteger(year) || !Number.isInteger(monthInput) || monthInput < 1 || monthInput > 12) {
         errorEl.textContent = "年または月が不正です。";
+        holidaySourceStatusEl.textContent = "";
         return;
       }
 
       if (!baseDate) {
         errorEl.textContent = "基準日を正しく入力してください。";
+        holidaySourceStatusEl.textContent = "";
         return;
       }
 
       if (!Number.isInteger(startIndexInput) || startIndexInput < 1) {
         errorEl.textContent = "開始交番番号は1以上で入力してください。";
+        holidaySourceStatusEl.textContent = "";
         return;
       }
 
       if (startIndexZeroBased >= FIXED_PATTERN.length) {
         errorEl.textContent = "開始交番番号が交番表の件数を超えています。";
+        holidaySourceStatusEl.textContent = "";
         return;
       }
 
+      const holidayMap = await getHolidayMap(year);
+      holidaySourceStatusEl.textContent = holidaySourceInfo;
+
       const firstDay = new Date(year, month, 1);
       const firstWeekday = firstDay.getDay();
-      const monthData = collectMonthData(year, monthInput, baseDate, startIndexInput);
+      const monthData = collectMonthData(year, monthInput, baseDate, startIndexInput, holidayMap);
       const weeks = createWeekChunks(monthData, firstWeekday);
 
       const grid = document.createElement("div");
@@ -973,9 +1025,11 @@
       URL.revokeObjectURL(url);
     }
 
-    function exportIcs() {
+    async function exportIcs() {
       const errorEl = document.getElementById("error");
+      const holidaySourceStatusEl = document.getElementById("holidaySourceStatus");
       errorEl.textContent = "";
+      holidaySourceStatusEl.textContent = "祝日データを確認中...";
 
       const year = parseInt(document.getElementById("year").value, 10);
       const monthInput = parseInt(document.getElementById("month").value, 10);
@@ -984,20 +1038,26 @@
 
       if (!Number.isInteger(year) || !Number.isInteger(monthInput) || monthInput < 1 || monthInput > 12) {
         errorEl.textContent = "年または月が不正です。";
+        holidaySourceStatusEl.textContent = "";
         return;
       }
 
       if (!baseDate) {
         errorEl.textContent = "基準日を正しく入力してください。";
+        holidaySourceStatusEl.textContent = "";
         return;
       }
 
       if (!Number.isInteger(startIndexInput) || startIndexInput < 1 || startIndexInput > FIXED_PATTERN.length) {
         errorEl.textContent = "開始交番番号が不正です。";
+        holidaySourceStatusEl.textContent = "";
         return;
       }
 
-      const monthData = collectMonthData(year, monthInput, baseDate, startIndexInput);
+      const holidayMap = await getHolidayMap(year);
+      holidaySourceStatusEl.textContent = holidaySourceInfo;
+
+      const monthData = collectMonthData(year, monthInput, baseDate, startIndexInput, holidayMap);
       const exportTargetCount = countExportEvents(monthData);
 
       if (exportTargetCount === 0) {
