@@ -165,13 +165,6 @@
       background: #fafafa;
     }
 
-    .note {
-      margin-top: 4px;
-      font-size: 11px;
-      color: #666;
-      line-height: 1.3;
-    }
-
     .legend {
       display: flex;
       gap: 12px;
@@ -322,9 +315,9 @@
     </div>
 
     <div class="export-info">
-      ICS出力では、その月の <strong>行路</strong> と <strong>明け</strong> だけを終日予定として出力します。<br>
-      明け日は <strong>前日の行路名を継承して「○○（明け）」</strong> で出力します。<br>
-      <strong>休みは出力しません。</strong>
+      ICS出力では、<strong>行路開始日を1件のイベントとして出力</strong>します。<br>
+      翌日が明けなら、<strong>2日間の予定として「○○行路」</strong>を出力します。<br>
+      明け単独イベントと休みは出力しません。
     </div>
 
     <div class="pattern-preview" id="patternPreview"></div>
@@ -336,7 +329,7 @@
   <div id="calendar"></div>
 
   <script>
-    const STORAGE_KEY = "shiftCalendarSettings_final_v1";
+    const STORAGE_KEY = "shiftCalendarSettings_final_v2";
     const AUTH_SESSION_KEY = "shiftCalendarAuth";
 
     const FIXED_PATTERN = [
@@ -376,10 +369,6 @@
 
     function isRouteShift(shift) {
       return classifyShift(shift) === "route";
-    }
-
-    function isAkeShift(shift) {
-      return classifyShift(shift) === "ake";
     }
 
     function escapeHtml(text) {
@@ -457,39 +446,21 @@
         FIXED_PATTERN.map((item, index) => `${index + 1}. ${item}`).join("\n");
     }
 
-    function getShiftForDate(current, baseDate, startIndex) {
+    function getShiftForDate(current, baseDate, startIndexZeroBased) {
       const diff = diffDaysLocal(current, baseDate);
-      const index = ((startIndex + diff) % FIXED_PATTERN.length + FIXED_PATTERN.length) % FIXED_PATTERN.length;
+      const index = ((startIndexZeroBased + diff) % FIXED_PATTERN.length + FIXED_PATTERN.length) % FIXED_PATTERN.length;
       return FIXED_PATTERN[index];
-    }
-
-    function resolveDisplayForAke(result, currentIndex) {
-      for (let i = currentIndex - 1; i >= 0; i--) {
-        if (isRouteShift(result[i].rawShift)) {
-          return {
-            displayShift: result[i].displayShiftBase || result[i].rawShift,
-            displayText: (result[i].displayShiftBase || result[i].rawShift) + "（明け）"
-          };
-        }
-        if (classifyShift(result[i].rawShift) === "off") {
-          break;
-        }
-      }
-      return {
-        displayShift: "明け",
-        displayText: "明け"
-      };
     }
 
     function collectMonthData(year, monthInput, baseDate, startIndexInput) {
       const month = monthInput - 1;
-      const startIndex = startIndexInput - 1;
+      const startIndexZeroBased = startIndexInput - 1;
       const lastDate = new Date(year, month + 1, 0).getDate();
       const result = [];
 
       for (let d = 1; d <= lastDate; d++) {
         const current = new Date(year, month, d);
-        const rawShift = getShiftForDate(current, baseDate, startIndex);
+        const rawShift = getShiftForDate(current, baseDate, startIndexZeroBased);
         const kind = classifyShift(rawShift);
 
         result.push({
@@ -497,10 +468,8 @@
           day: d,
           rawShift,
           kind,
-          displayShiftBase: rawShift,
-          displayText: rawShift,
-          exportText: rawShift,
-          note: ""
+          displayBase: rawShift,
+          displayText: rawShift
         });
       }
 
@@ -508,25 +477,45 @@
         const item = result[i];
 
         if (item.kind === "route") {
-          item.displayShiftBase = item.rawShift;
+          item.displayBase = item.rawShift;
           item.displayText = item.rawShift;
-          item.exportText = item.rawShift;
-          item.note = "";
-        } else if (item.kind === "ake") {
-          const resolved = resolveDisplayForAke(result, i);
-          item.displayShiftBase = resolved.displayShift;
-          item.displayText = resolved.displayText;
-          item.exportText = resolved.displayText;
-          item.note = "明け";
-        } else {
-          item.displayShiftBase = item.rawShift;
-          item.displayText = item.rawShift;
-          item.exportText = "";
-          item.note = "";
+          continue;
         }
+
+        if (item.kind === "ake") {
+          let inherited = "明け";
+          for (let j = i - 1; j >= 0; j--) {
+            if (result[j].kind === "route") {
+              inherited = result[j].displayBase;
+              break;
+            }
+            if (result[j].kind === "off") {
+              break;
+            }
+          }
+          item.displayBase = inherited;
+          item.displayText = inherited === "明け" ? "明け" : `${inherited}（明け）`;
+          continue;
+        }
+
+        item.displayBase = item.rawShift;
+        item.displayText = item.rawShift;
       }
 
       return result;
+    }
+
+    function countExportEvents(monthData, baseDate, startIndexInput) {
+      let count = 0;
+      const startIndexZeroBased = startIndexInput - 1;
+
+      for (let i = 0; i < monthData.length; i++) {
+        const item = monthData[i];
+        if (item.kind !== "route") continue;
+        count++;
+      }
+
+      return count;
     }
 
     function generate() {
@@ -543,7 +532,7 @@
       const month = monthInput - 1;
       const baseDate = createLocalDateFromInput(document.getElementById("baseDate").value);
       const startIndexInput = parseInt(document.getElementById("startIndex").value, 10);
-      const startIndex = startIndexInput - 1;
+      const startIndexZeroBased = startIndexInput - 1;
 
       if (!Number.isInteger(year) || !Number.isInteger(monthInput) || monthInput < 1 || monthInput > 12) {
         errorEl.textContent = "年または月が不正です。";
@@ -560,7 +549,7 @@
         return;
       }
 
-      if (startIndex >= FIXED_PATTERN.length) {
+      if (startIndexZeroBased >= FIXED_PATTERN.length) {
         errorEl.textContent = "開始交番番号が交番表の件数を超えています。";
         return;
       }
@@ -589,13 +578,11 @@
       let routeCount = 0;
       let akeCount = 0;
       let offCount = 0;
-      let exportCount = 0;
 
       for (const item of monthData) {
         if (item.kind === "route") routeCount++;
         if (item.kind === "ake") akeCount++;
         if (item.kind === "off") offCount++;
-        if (item.kind === "route" || item.kind === "ake") exportCount++;
 
         const cell = document.createElement("div");
         cell.className = "cell";
@@ -610,26 +597,24 @@
 
         cell.appendChild(day);
         cell.appendChild(shiftLabel);
-
         grid.appendChild(cell);
       }
 
-      const startLabel = monthData.length > 0 ? monthData[0].displayText : FIXED_PATTERN[startIndex];
+      const exportEventCount = countExportEvents(monthData, baseDate, startIndexInput);
 
       summaryEl.innerHTML =
         `基準日 <strong>${escapeHtml(document.getElementById("baseDate").value)}</strong> は ` +
-        `<strong>${escapeHtml(FIXED_PATTERN[startIndex])}</strong> を基準に計算しています。<br>` +
-        `表示上の先頭勤務: <strong>${escapeHtml(startLabel)}</strong><br>` +
+        `<strong>${escapeHtml(FIXED_PATTERN[startIndexZeroBased])}</strong> を基準に計算しています。<br>` +
         `行路日数: <strong>${routeCount}</strong> 日 / ` +
         `明け日数: <strong>${akeCount}</strong> 日 / ` +
         `休日日数: <strong>${offCount}</strong> 日 / ` +
-        `ICS出力件数: <strong>${exportCount}</strong> 件 / ` +
+        `ICS出力イベント数: <strong>${exportEventCount}</strong> 件 / ` +
         `固定交番表件数: <strong>${FIXED_PATTERN.length}</strong> 件`;
 
       calendarEl.appendChild(grid);
     }
 
-    function buildICS(monthData, year, monthInput) {
+    function buildICS(monthData, year, monthInput, baseDate, startIndexInput) {
       const lines = [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
@@ -641,20 +626,36 @@
       ];
 
       const nowStamp = formatDateTimeStampUTC(new Date());
+      const startIndexZeroBased = startIndexInput - 1;
 
-      for (const item of monthData) {
-        if (!(item.kind === "route" || item.kind === "ake")) continue;
+      for (let i = 0; i < monthData.length; i++) {
+        const item = monthData[i];
+        if (item.kind !== "route") continue;
+
+        let isTwoDayEvent = false;
+
+        if (i < monthData.length - 1) {
+          const next = monthData[i + 1];
+          isTwoDayEvent =
+            next.kind === "ake" &&
+            next.displayBase === item.displayBase;
+        } else {
+          const nextDate = addDays(item.date, 1);
+          const nextRawShift = getShiftForDate(nextDate, baseDate, startIndexZeroBased);
+          isTwoDayEvent = classifyShift(nextRawShift) === "ake";
+        }
 
         const start = formatDateForICS(item.date);
-        const end = formatDateForICS(addDays(item.date, 1));
-        const uid = `${start}-${item.exportText}-${year}${String(monthInput).padStart(2, "0")}@shift-calendar`;
+        const end = formatDateForICS(addDays(item.date, isTwoDayEvent ? 2 : 1));
+        const summary = item.displayBase;
+        const uid = `${start}-${summary}-${year}${String(monthInput).padStart(2, "0")}@shift-calendar`;
 
         lines.push("BEGIN:VEVENT");
         lines.push(`UID:${uid}`);
         lines.push(`DTSTAMP:${nowStamp}`);
         lines.push(`DTSTART;VALUE=DATE:${start}`);
         lines.push(`DTEND;VALUE=DATE:${end}`);
-        lines.push(`SUMMARY:${item.exportText}`);
+        lines.push(`SUMMARY:${summary}`);
         lines.push("END:VEVENT");
       }
 
@@ -699,14 +700,14 @@
       }
 
       const monthData = collectMonthData(year, monthInput, baseDate, startIndexInput);
-      const exportTargetCount = monthData.filter(item => item.kind === "route" || item.kind === "ake").length;
+      const exportTargetCount = countExportEvents(monthData, baseDate, startIndexInput);
 
       if (exportTargetCount === 0) {
-        errorEl.textContent = "出力対象（行路・明け）がありません。";
+        errorEl.textContent = "出力対象イベントがありません。";
         return;
       }
 
-      const ics = buildICS(monthData, year, monthInput);
+      const ics = buildICS(monthData, year, monthInput, baseDate, startIndexInput);
       const fileName = `shift_${year}_${String(monthInput).padStart(2, "0")}.ics`;
       downloadTextFile(fileName, ics, "text/calendar;charset=utf-8");
     }
