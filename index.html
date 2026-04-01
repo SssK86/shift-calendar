@@ -1,33 +1,1103 @@
-<body>
-  <div id="login-area">
-    <input type="password" id="password">
-    <button onclick="checkPassword()">パスワードを入力してください。</button>
-    <div id="error-message" style="display:none;color:red;">アクセスできません。</div>
-  </div>
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>交番表シフトカレンダー</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex,nofollow,noarchive,nosnippet">
 
-  <div id="app"></div>
+  <style>
+    html.auth-pending body {
+      display: none !important;
+    }
+
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: #f5f5f5;
+      color: #222;
+    }
+
+    h1 {
+      margin-bottom: 10px;
+      font-size: 28px;
+    }
+
+    .container {
+      background: #fff;
+      padding: 16px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+
+    label {
+      font-weight: bold;
+      margin-right: 6px;
+    }
+
+    input, button {
+      padding: 8px;
+      margin: 5px 0 10px 0;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+
+    input[type="number"],
+    input[type="date"] {
+      width: 180px;
+      max-width: 100%;
+    }
+
+    button {
+      cursor: pointer;
+      background: #1976d2;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 10px 16px;
+      margin-right: 8px;
+      margin-bottom: 8px;
+    }
+
+    button:hover {
+      background: #125ca1;
+    }
+
+    .secondary {
+      background: #666;
+    }
+
+    .secondary:hover {
+      background: #4d4d4d;
+    }
+
+    .success {
+      background: #2e7d32;
+    }
+
+    .success:hover {
+      background: #1f5a22;
+    }
+
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: flex-start;
+      margin-bottom: 8px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      min-width: 180px;
+      flex: 1 1 180px;
+    }
+
+    .summary {
+      margin-top: 12px;
+      font-size: 14px;
+      line-height: 1.8;
+    }
+
+    .error {
+      color: #c62828;
+      font-weight: bold;
+      margin-top: 10px;
+    }
+
+    .notice {
+      color: #555;
+      font-size: 13px;
+      margin-top: 6px;
+      line-height: 1.6;
+    }
+
+    .status {
+      color: #444;
+      font-size: 13px;
+      margin-top: 6px;
+      line-height: 1.6;
+    }
+
+    .calendar {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 2px;
+      background: #ccc;
+      border: 1px solid #ccc;
+    }
+
+    .cell {
+      position: relative;
+      background: #fff;
+      min-height: 96px;
+      padding: 6px;
+      font-size: 14px;
+      overflow: visible;
+    }
+
+    .header {
+      background: #eceff1;
+      text-align: center;
+      font-weight: bold;
+      min-height: auto;
+    }
+
+    .day {
+      font-weight: bold;
+      margin-bottom: 6px;
+      position: relative;
+      z-index: 3;
+    }
+
+    .shift {
+      display: inline-block;
+      margin-top: 4px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      font-size: 12px;
+      line-height: 1.4;
+      word-break: break-word;
+      position: relative;
+      z-index: 2;
+    }
+
+    .off {
+      background: #d4f5d4;
+      color: #1b5e20;
+    }
+
+    .blank {
+      background: #fafafa;
+    }
+
+    .bar {
+      position: relative;
+      z-index: 2;
+      margin-top: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      line-height: 1.4;
+      white-space: nowrap;
+      overflow: hidden;
+      box-sizing: border-box;
+      background: #d0e7ff;
+      color: #0d47a1;
+    }
+
+    .legend {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+      font-size: 13px;
+    }
+
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .dot-route { background: #d0e7ff; }
+    .dot-off { background: #d4f5d4; }
+
+    .top-actions {
+      margin-top: 10px;
+    }
+
+    .pattern-preview {
+      margin-top: 14px;
+      padding: 12px;
+      background: #f8f9fa;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 13px;
+      line-height: 1.8;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 260px;
+      overflow: auto;
+    }
+
+    .export-info {
+      margin-top: 12px;
+      padding: 12px;
+      background: #eef7ee;
+      border: 1px solid #c7e0c8;
+      border-radius: 8px;
+      font-size: 13px;
+      line-height: 1.7;
+    }
+
+    @media (max-width: 700px) {
+      body {
+        margin: 12px;
+      }
+
+      h1 {
+        font-size: 24px;
+      }
+
+      .calendar {
+        font-size: 12px;
+      }
+
+      .cell {
+        min-height: 82px;
+        padding: 4px;
+      }
+
+      .shift {
+        font-size: 11px;
+        padding: 2px 6px;
+      }
+
+      .bar {
+        font-size: 11px;
+        padding: 3px 8px;
+      }
+
+      input[type="number"],
+      input[type="date"] {
+        width: 100%;
+      }
+    }
+  </style>
 
   <script>
-    const correctPassword = "1234";
+    document.documentElement.classList.add("auth-pending");
+  </script>
 
-    async function checkPassword() {
-      const input = document.getElementById("password").value;
-      const error = document.getElementById("error-message");
+  <script>
+    (function () {
+      const PASSWORD = "1223";
+      const SESSION_KEY = "shiftCalendarAuth";
 
-      if (input !== correctPassword) {
-        document.getElementById("app").innerHTML = "";
-        error.style.display = "block";
+      function deny() {
+        document.head.innerHTML = '<meta charset="UTF-8"><title>アクセス不可</title>';
+        document.body.innerHTML = "アクセスできません。";
+        document.documentElement.className = "";
+        throw new Error("Unauthorized");
+      }
+
+      if (sessionStorage.getItem(SESSION_KEY) === "ok") {
+        document.documentElement.classList.remove("auth-pending");
         return;
       }
 
-      error.style.display = "none";
-      document.getElementById("login-area").style.display = "none";
+      const input = prompt("パスワードを入力してください");
 
-      // 正解時だけ中身を生成する
-      document.getElementById("app").innerHTML = `
-        <h1>シフトカレンダー</h1>
-        <p>ここに内容をJSで描画</p>
-      `;
-    }
+      if (input !== PASSWORD) {
+        deny();
+        return;
+      }
+
+      sessionStorage.setItem(SESSION_KEY, "ok");
+      document.documentElement.classList.remove("auth-pending");
+    })();
   </script>
+</head>
+<body>
+
+  <h1>交番表シフトカレンダー</h1>
+
+  <div class="container">
+    <div class="row">
+      <div class="field">
+        <label for="year">年</label>
+        <input type="number" id="year">
+      </div>
+
+      <div class="field">
+        <label for="month">月</label>
+        <input type="number" id="month" min="1" max="12">
+      </div>
+
+      <div class="field">
+        <label for="baseDate">基準日</label>
+        <input type="date" id="baseDate">
+      </div>
+
+      <div class="field">
+        <label for="startIndex">開始交番番号</label>
+        <input type="number" id="startIndex" min="1">
+      </div>
+    </div>
+
+    <div class="top-actions">
+      <button onclick="generate()">カレンダー生成</button>
+      <button class="success" onclick="exportIcs()">ICS出力</button>
+      <button class="secondary" onclick="saveSettings()">設定を保存</button>
+      <button class="secondary" onclick="resetSettings()">設定を削除</button>
+      <button class="secondary" onclick="logout()">再認証</button>
+    </div>
+
+    <div class="legend">
+      <span><i class="dot dot-route"></i> 行路（2日帯表示）</span>
+      <span><i class="dot dot-off"></i> 休み</span>
+    </div>
+
+    <div class="notice">
+      交番表は固定です。入力変更はできません。<br>
+      祝日判定は Holidays JP API を優先し、失敗時は内蔵ロジックに切り替えます。
+    </div>
+
+    <div class="status" id="holidaySourceStatus"></div>
+
+    <div class="export-info">
+      ICS出力では、行路開始日を1件のイベントとして出力します。<br>
+      翌日が明けなら、<strong>2日間の予定として「○○行路」</strong> を出力します。<br>
+      明け単独イベントと休みは出力しません。
+    </div>
+
+    <div class="pattern-preview" id="patternPreview"></div>
+
+    <div class="summary" id="summary"></div>
+    <div class="error" id="error"></div>
+  </div>
+
+  <div id="calendar"></div>
+
+  <script>
+    const STORAGE_KEY = "shiftCalendarSettings_holidaysjp_v1";
+    const HOLIDAY_CACHE_PREFIX = "holidaysjp_cache_";
+    const AUTH_SESSION_KEY = "shiftCalendarAuth";
+    const CELL_GAP_PX = 2;
+
+    let holidaySourceInfo = "";
+
+    const FIXED_PATTERN = [
+      { kind: "route", weekday: "平17行路", holiday: "休17行路" },
+      { kind: "ake" },
+      { kind: "route", weekday: "平9行路", holiday: "休9行路" },
+      { kind: "ake" },
+      { kind: "off" },
+      { kind: "off" },
+      { kind: "route", weekday: "平24行路", holiday: "休24行路" },
+      { kind: "ake" },
+      { kind: "route", weekday: "平15行路", holiday: "休15行路" },
+      { kind: "ake" },
+      { kind: "off" },
+      { kind: "off" },
+      { kind: "route", weekday: "平8行路", holiday: "休8行路" },
+      { kind: "route", weekday: "平3行路", holiday: "休3行路" },
+      { kind: "route", weekday: "平18行路", holiday: "休18行路" },
+      { kind: "ake" },
+      { kind: "off" },
+      { kind: "off" },
+      { kind: "route", weekday: "平20行路", holiday: "休20行路" },
+      { kind: "ake" },
+      { kind: "route", weekday: "平16行路", holiday: "休16行路" },
+      { kind: "ake" },
+      { kind: "off" },
+      { kind: "off" },
+      { kind: "route", weekday: "平21行路", holiday: "休21行路" },
+      { kind: "ake" },
+      { kind: "route", weekday: "平10行路", holiday: "休10行路" },
+      { kind: "ake" },
+      { kind: "off" },
+      { kind: "off" },
+      { kind: "route", weekday: "平7行路", holiday: "休7行路" },
+      { kind: "route", weekday: "平4行路", holiday: "休4行路" },
+      { kind: "route", weekday: "平13行路", holiday: "休13行路" },
+      { kind: "ake" },
+      { kind: "off" },
+      { kind: "off" },
+      { kind: "route", weekday: "平26行路", holiday: "休26行路" },
+      { kind: "ake" },
+      { kind: "route", weekday: "平11行路", holiday: "休11行路" },
+      { kind: "ake" },
+      { kind: "off" },
+      { kind: "off" },
+      { kind: "route", weekday: "平25行路", holiday: "休25行路" },
+      { kind: "ake" },
+      { kind: "route", weekday: "平19行路", holiday: "休19行路" },
+      { kind: "ake" },
+      { kind: "off" },
+      { kind: "off" },
+      { kind: "route", weekday: "平6行路", holiday: "休6行路" },
+      { kind: "route", weekday: "平1行路", holiday: "休1行路" },
+      { kind: "route", weekday: "平23行路", holiday: "休23行路" },
+      { kind: "ake" },
+      { kind: "off" },
+      { kind: "off" },
+      { kind: "route", weekday: "平22行路", holiday: "休22行路" },
+      { kind: "ake" },
+      { kind: "route", weekday: "平12行路", holiday: "休12行路" },
+      { kind: "ake" },
+      { kind: "off" },
+      { kind: "route", weekday: "平14行路", holiday: "休14行路" },
+      { kind: "ake" },
+      { kind: "route", weekday: "平5行路", holiday: "休5行路" },
+      { kind: "route", weekday: "平2行路", holiday: "休み" },
+      { kind: "off" },
+      { kind: "off" }
+    ];
+
+    function escapeHtml(text) {
+      return String(text)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function createLocalDateFromInput(value) {
+      if (!value) return null;
+      const parts = value.split("-").map(Number);
+      if (parts.length !== 3 || parts.some(Number.isNaN)) return null;
+      const [y, m, d] = parts;
+      return new Date(y, m - 1, d);
+    }
+
+    function dateKey(date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, "0");
+      const d = String(date.getDate()).padStart(2, "0");
+      return `${y}-${m}-${d}`;
+    }
+
+    function nthWeekdayOfMonth(year, monthIndex, weekday, nth) {
+      const first = new Date(year, monthIndex, 1);
+      const diff = (7 + weekday - first.getDay()) % 7;
+      return new Date(year, monthIndex, 1 + diff + (nth - 1) * 7);
+    }
+
+    function vernalEquinoxDay(year) {
+      if (year <= 1979) {
+        return Math.floor(20.8357 + 0.242194 * (year - 1980) - Math.floor((year - 1983) / 4));
+      }
+      if (year <= 2099) {
+        return Math.floor(20.8431 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
+      }
+      return Math.floor(21.8510 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
+    }
+
+    function autumnEquinoxDay(year) {
+      if (year <= 1979) {
+        return Math.floor(23.2588 + 0.242194 * (year - 1980) - Math.floor((year - 1983) / 4));
+      }
+      if (year <= 2099) {
+        return Math.floor(23.2488 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
+      }
+      return Math.floor(24.2488 + 0.242194 * (year - 1980) - Math.floor((year - 1980) / 4));
+    }
+
+    function getJapaneseNationalHolidayMapFallback(year) {
+      const holidays = new Map();
+
+      function add(monthIndex, day, name) {
+        holidays.set(dateKey(new Date(year, monthIndex, day)), name);
+      }
+
+      add(0, 1, "元日");
+      add(1, 11, "建国記念の日");
+
+      if (year >= 2020) {
+        add(1, 23, "天皇誕生日");
+      } else if (year >= 1989 && year <= 2018) {
+        add(11, 23, "天皇誕生日");
+      }
+
+      add(2, vernalEquinoxDay(year), "春分の日");
+      add(3, 29, "昭和の日");
+      add(4, 3, "憲法記念日");
+      add(4, 4, "みどりの日");
+      add(4, 5, "こどもの日");
+      add(10, 3, "文化の日");
+      add(10, 23, "勤労感謝の日");
+      add(8, autumnEquinoxDay(year), "秋分の日");
+
+      if (year >= 2000) {
+        holidays.set(dateKey(nthWeekdayOfMonth(year, 0, 1, 2)), "成人の日");
+      } else if (year >= 1949) {
+        add(0, 15, "成人の日");
+      }
+
+      if (year === 2020) {
+        add(6, 23, "海の日");
+      } else if (year === 2021) {
+        add(6, 22, "海の日");
+      } else if (year >= 2003) {
+        holidays.set(dateKey(nthWeekdayOfMonth(year, 6, 1, 3)), "海の日");
+      } else if (year >= 1996) {
+        add(6, 20, "海の日");
+      }
+
+      if (year === 2020) {
+        add(7, 10, "山の日");
+      } else if (year === 2021) {
+        add(7, 8, "山の日");
+      } else if (year >= 2016) {
+        add(7, 11, "山の日");
+      }
+
+      if (year >= 2003) {
+        holidays.set(dateKey(nthWeekdayOfMonth(year, 8, 1, 3)), "敬老の日");
+      } else if (year >= 1966) {
+        add(8, 15, "敬老の日");
+      }
+
+      if (year === 2020) {
+        add(6, 24, "スポーツの日");
+      } else if (year === 2021) {
+        add(6, 23, "スポーツの日");
+      } else if (year >= 2022) {
+        holidays.set(dateKey(nthWeekdayOfMonth(year, 9, 1, 2)), "スポーツの日");
+      } else if (year >= 2000) {
+        holidays.set(dateKey(nthWeekdayOfMonth(year, 9, 1, 2)), "体育の日");
+      } else if (year >= 1966) {
+        add(9, 10, "体育の日");
+      }
+
+      for (let monthIndex = 0; monthIndex < 12; monthIndex++) {
+        const lastDay = new Date(year, monthIndex + 1, 0).getDate();
+        for (let day = 1; day <= lastDay; day++) {
+          const current = new Date(year, monthIndex, day);
+          const key = dateKey(current);
+          if (holidays.has(key)) continue;
+
+          const prev = new Date(year, monthIndex, day - 1);
+          const next = new Date(year, monthIndex, day + 1);
+          if (holidays.has(dateKey(prev)) && holidays.has(dateKey(next))) {
+            holidays.set(key, "休日");
+          }
+        }
+      }
+
+      const holidayKeys = Array.from(holidays.keys()).sort();
+      for (const key of holidayKeys) {
+        const [y, m, d] = key.split("-").map(Number);
+        const holidayDate = new Date(y, m - 1, d);
+        if (holidayDate.getDay() !== 0) continue;
+
+        const substitute = new Date(holidayDate);
+        substitute.setDate(substitute.getDate() + 1);
+        while (holidays.has(dateKey(substitute))) {
+          substitute.setDate(substitute.getDate() + 1);
+        }
+        holidays.set(dateKey(substitute), "休日");
+      }
+
+      return holidays;
+    }
+
+    async function fetchHolidayMapFromApi(year) {
+      const url = `https://holidays-jp.github.io/api/v1/${year}/date.json`;
+      const response = await fetch(url, { cache: "no-store" });
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const data = await response.json();
+      return new Map(Object.entries(data));
+    }
+
+    async function getHolidayMap(year) {
+      const cacheKey = `${HOLIDAY_CACHE_PREFIX}${year}`;
+      const cachedRaw = localStorage.getItem(cacheKey);
+
+      if (cachedRaw) {
+        try {
+          const cached = JSON.parse(cachedRaw);
+          if (cached && cached.data) {
+            holidaySourceInfo = `${year}年祝日: キャッシュ使用`;
+            return new Map(Object.entries(cached.data));
+          }
+        } catch {}
+      }
+
+      try {
+        const apiMap = await fetchHolidayMapFromApi(year);
+        const plain = Object.fromEntries(apiMap.entries());
+        localStorage.setItem(cacheKey, JSON.stringify({
+          fetchedAt: new Date().toISOString(),
+          data: plain
+        }));
+        holidaySourceInfo = `${year}年祝日: Holidays JP API`;
+        return apiMap;
+      } catch {
+        const fallbackMap = getJapaneseNationalHolidayMapFallback(year);
+        holidaySourceInfo = `${year}年祝日: 内蔵ロジック`;
+        return fallbackMap;
+      }
+    }
+
+    function formatDateForICS(date) {
+      const yyyy = date.getFullYear();
+      const mm = String(date.getMonth() + 1).padStart(2, "0");
+      const dd = String(date.getDate()).padStart(2, "0");
+      return `${yyyy}${mm}${dd}`;
+    }
+
+    function formatDateTimeStampUTC(date) {
+      const yyyy = date.getUTCFullYear();
+      const mm = String(date.getUTCMonth() + 1).padStart(2, "0");
+      const dd = String(date.getUTCDate()).padStart(2, "0");
+      const hh = String(date.getUTCHours()).padStart(2, "0");
+      const mi = String(date.getUTCMinutes()).padStart(2, "0");
+      const ss = String(date.getUTCSeconds()).padStart(2, "0");
+      return `${yyyy}${mm}${dd}T${hh}${mi}${ss}Z`;
+    }
+
+    function addDays(date, days) {
+      return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
+    }
+
+    function saveSettings() {
+      const payload = {
+        year: document.getElementById("year").value,
+        month: document.getElementById("month").value,
+        baseDate: document.getElementById("baseDate").value,
+        startIndex: document.getElementById("startIndex").value
+      };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+      alert("設定を保存しました。");
+    }
+
+    function loadSettings() {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return false;
+
+      try {
+        const data = JSON.parse(raw);
+        if (data.year) document.getElementById("year").value = data.year;
+        if (data.month) document.getElementById("month").value = data.month;
+        if (data.baseDate) document.getElementById("baseDate").value = data.baseDate;
+        if (data.startIndex) document.getElementById("startIndex").value = data.startIndex;
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    function resetSettings() {
+      localStorage.removeItem(STORAGE_KEY);
+      alert("設定を削除しました。ページを再読込すると初期値に戻ります。");
+    }
+
+    function logout() {
+      sessionStorage.removeItem(AUTH_SESSION_KEY);
+      location.reload();
+    }
+
+    function renderPatternPreview() {
+      const preview = document.getElementById("patternPreview");
+      preview.textContent =
+        "固定交番表（" + FIXED_PATTERN.length + "件）\n\n" +
+        FIXED_PATTERN.map((item, index) => {
+          if (item.kind === "route") {
+            return `${index + 1}. 平日:${item.weekday} / 休日:${item.holiday}`;
+          }
+          if (item.kind === "ake") {
+            return `${index + 1}. 明け`;
+          }
+          return `${index + 1}. 休み`;
+        }).join("\n");
+    }
+
+    function diffDaysLocal(date1, date2) {
+      const msPerDay = 1000 * 60 * 60 * 24;
+      const t1 = new Date(date1.getFullYear(), date1.getMonth(), date1.getDate()).getTime();
+      const t2 = new Date(date2.getFullYear(), date2.getMonth(), date2.getDate()).getTime();
+      return Math.round((t1 - t2) / msPerDay);
+    }
+
+    function getPatternItemForDate(current, baseDate, startIndexZeroBased) {
+      const diff = diffDaysLocal(current, baseDate);
+      const index = ((startIndexZeroBased + diff) % FIXED_PATTERN.length + FIXED_PATTERN.length) % FIXED_PATTERN.length;
+      return FIXED_PATTERN[index];
+    }
+
+    function collectMonthData(year, monthInput, baseDate, startIndexInput, holidayMap) {
+      const month = monthInput - 1;
+      const startIndexZeroBased = startIndexInput - 1;
+      const lastDate = new Date(year, month + 1, 0).getDate();
+      const result = [];
+
+      for (let d = 1; d <= lastDate; d++) {
+        const current = new Date(year, month, d);
+        const patternItem = getPatternItemForDate(current, baseDate, startIndexZeroBased);
+        const isHoliday = current.getDay() === 0 || current.getDay() === 6 || holidayMap.has(dateKey(current));
+
+        let effectiveKind = patternItem.kind;
+        let displayBase = "";
+        let displayText = "";
+
+        if (patternItem.kind === "route") {
+          displayBase = isHoliday ? patternItem.holiday : patternItem.weekday;
+          if (displayBase === "休み") {
+            effectiveKind = "off";
+            displayText = "休み";
+          } else {
+            effectiveKind = "route";
+            displayText = displayBase;
+          }
+        } else if (patternItem.kind === "ake") {
+          effectiveKind = "ake";
+          displayText = "明け";
+        } else {
+          effectiveKind = "off";
+          displayText = "休み";
+        }
+
+        result.push({
+          date: current,
+          day: d,
+          patternItem,
+          effectiveKind,
+          isHoliday,
+          displayBase,
+          displayText,
+          isTwoDayStart: false,
+          isTwoDayFollower: false
+        });
+      }
+
+      for (let i = 0; i < result.length; i++) {
+        const item = result[i];
+
+        if (item.effectiveKind === "ake") {
+          let inherited = "明け";
+          for (let j = i - 1; j >= 0; j--) {
+            if (result[j].effectiveKind === "route") {
+              inherited = result[j].displayBase;
+              break;
+            }
+            if (result[j].effectiveKind === "off") {
+              break;
+            }
+          }
+          item.displayBase = inherited;
+          item.displayText = inherited;
+        }
+      }
+
+      for (let i = 0; i < result.length; i++) {
+        const item = result[i];
+        const next = result[i + 1];
+
+        if (
+          item.effectiveKind === "route" &&
+          next &&
+          next.effectiveKind === "ake" &&
+          next.displayBase === item.displayBase
+        ) {
+          item.isTwoDayStart = true;
+          next.isTwoDayFollower = true;
+        }
+      }
+
+      return result;
+    }
+
+    function countExportEvents(monthData) {
+      let count = 0;
+      for (const item of monthData) {
+        if (item.effectiveKind === "route") count++;
+      }
+      return count;
+    }
+
+    function createWeekChunks(monthData, firstWeekday) {
+      const weeks = [];
+      let pointer = 0;
+      const totalDays = monthData.length;
+      let weekIndex = 0;
+
+      while (pointer < totalDays) {
+        const week = [];
+        for (let weekday = 0; weekday < 7; weekday++) {
+          const absoluteCellIndex = weekIndex * 7 + weekday;
+          if (absoluteCellIndex < firstWeekday || pointer >= totalDays) {
+            week.push({ empty: true, key: `blank-${weekIndex}-${weekday}` });
+          } else {
+            const item = monthData[pointer];
+            item.weekday = weekday;
+            week.push(item);
+            pointer++;
+          }
+        }
+        weeks.push(week);
+        weekIndex++;
+      }
+
+      return weeks;
+    }
+
+    async function generate() {
+      const errorEl = document.getElementById("error");
+      const summaryEl = document.getElementById("summary");
+      const calendarEl = document.getElementById("calendar");
+      const holidaySourceStatusEl = document.getElementById("holidaySourceStatus");
+
+      errorEl.textContent = "";
+      summaryEl.innerHTML = "";
+      calendarEl.innerHTML = "";
+      holidaySourceStatusEl.textContent = "祝日データを確認中...";
+
+      const year = parseInt(document.getElementById("year").value, 10);
+      const monthInput = parseInt(document.getElementById("month").value, 10);
+      const month = monthInput - 1;
+      const baseDate = createLocalDateFromInput(document.getElementById("baseDate").value);
+      const startIndexInput = parseInt(document.getElementById("startIndex").value, 10);
+      const startIndexZeroBased = startIndexInput - 1;
+
+      if (!Number.isInteger(year) || !Number.isInteger(monthInput) || monthInput < 1 || monthInput > 12) {
+        errorEl.textContent = "年または月が不正です。";
+        holidaySourceStatusEl.textContent = "";
+        return;
+      }
+
+      if (!baseDate) {
+        errorEl.textContent = "基準日を正しく入力してください。";
+        holidaySourceStatusEl.textContent = "";
+        return;
+      }
+
+      if (!Number.isInteger(startIndexInput) || startIndexInput < 1) {
+        errorEl.textContent = "開始交番番号は1以上で入力してください。";
+        holidaySourceStatusEl.textContent = "";
+        return;
+      }
+
+      if (startIndexZeroBased >= FIXED_PATTERN.length) {
+        errorEl.textContent = "開始交番番号が交番表の件数を超えています。";
+        holidaySourceStatusEl.textContent = "";
+        return;
+      }
+
+      const holidayMap = await getHolidayMap(year);
+      holidaySourceStatusEl.textContent = holidaySourceInfo;
+
+      const firstDay = new Date(year, month, 1);
+      const firstWeekday = firstDay.getDay();
+      const monthData = collectMonthData(year, monthInput, baseDate, startIndexInput, holidayMap);
+      const weeks = createWeekChunks(monthData, firstWeekday);
+
+      const grid = document.createElement("div");
+      grid.className = "calendar";
+
+      const weekNames = ["日", "月", "火", "水", "木", "金", "土"];
+      for (const w of weekNames) {
+        const header = document.createElement("div");
+        header.className = "cell header";
+        header.textContent = w;
+        grid.appendChild(header);
+      }
+
+      let routeCount = 0;
+      let akeCount = 0;
+      let offCount = 0;
+      let holidayDisplayedCount = 0;
+
+      for (const week of weeks) {
+        for (let weekday = 0; weekday < 7; weekday++) {
+          const item = week[weekday];
+
+          if (item.empty) {
+            const blank = document.createElement("div");
+            blank.className = "cell blank";
+            grid.appendChild(blank);
+            continue;
+          }
+
+          if (item.effectiveKind === "route") routeCount++;
+          if (item.effectiveKind === "ake") akeCount++;
+          if (item.effectiveKind === "off") offCount++;
+          if (item.isHoliday) holidayDisplayedCount++;
+
+          const cell = document.createElement("div");
+          cell.className = "cell";
+
+          const day = document.createElement("div");
+          day.className = "day";
+          day.textContent = item.day;
+          cell.appendChild(day);
+
+          if (item.effectiveKind === "off") {
+            const shiftLabel = document.createElement("div");
+            shiftLabel.className = "shift off";
+            shiftLabel.textContent = item.displayText;
+            cell.appendChild(shiftLabel);
+          } else if (item.isTwoDayStart) {
+            const bar = document.createElement("div");
+            bar.className = "bar";
+            bar.textContent = item.displayBase;
+
+            const availableCells = Math.min(2, 7 - weekday);
+            const widthPercent = availableCells * 100;
+            const extraGap = (availableCells - 1) * CELL_GAP_PX;
+            bar.style.width = `calc(${widthPercent}% + ${extraGap}px)`;
+
+            cell.appendChild(bar);
+          } else if (item.isTwoDayFollower) {
+            // 帯の後半日は表示しない
+          } else {
+            const bar = document.createElement("div");
+            bar.className = "bar";
+            bar.textContent = item.displayBase;
+            bar.style.width = "100%";
+            cell.appendChild(bar);
+          }
+
+          grid.appendChild(cell);
+        }
+      }
+
+      const exportEventCount = countExportEvents(monthData);
+      const basePattern = FIXED_PATTERN[startIndexZeroBased];
+      const basePatternText =
+        basePattern.kind === "route"
+          ? `平日:${basePattern.weekday} / 休日:${basePattern.holiday}`
+          : basePattern.kind === "ake"
+          ? "明け"
+          : "休み";
+
+      summaryEl.innerHTML =
+        `基準日 <strong>${escapeHtml(document.getElementById("baseDate").value)}</strong> は ` +
+        `<strong>${escapeHtml(basePatternText)}</strong> を基準に計算しています。<br>` +
+        `行路日数: <strong>${routeCount}</strong> 日 / ` +
+        `明け日数: <strong>${akeCount}</strong> 日 / ` +
+        `休日日数: <strong>${offCount}</strong> 日 / ` +
+        `土日祝該当日数: <strong>${holidayDisplayedCount}</strong> 日 / ` +
+        `ICS出力イベント数: <strong>${exportEventCount}</strong> 件 / ` +
+        `固定交番表件数: <strong>${FIXED_PATTERN.length}</strong> 件`;
+
+      calendarEl.appendChild(grid);
+    }
+
+    function buildICS(monthData, year, monthInput, baseDate, startIndexInput) {
+      const lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//Shift Calendar//JP",
+        "CALSCALE:GREGORIAN",
+        "METHOD:PUBLISH",
+        "X-WR-CALNAME:シフト出力",
+        "X-WR-TIMEZONE:Asia/Tokyo"
+      ];
+
+      const nowStamp = formatDateTimeStampUTC(new Date());
+      const startIndexZeroBased = startIndexInput - 1;
+
+      for (let i = 0; i < monthData.length; i++) {
+        const item = monthData[i];
+        if (item.effectiveKind !== "route") continue;
+
+        let isTwoDayEvent = false;
+
+        if (i < monthData.length - 1) {
+          const next = monthData[i + 1];
+          isTwoDayEvent =
+            next.effectiveKind === "ake" &&
+            next.displayBase === item.displayBase;
+        } else {
+          const nextDate = addDays(item.date, 1);
+          const nextPattern = getPatternItemForDate(nextDate, baseDate, startIndexZeroBased);
+          if (nextPattern.kind === "ake") {
+            isTwoDayEvent = true;
+          }
+        }
+
+        const start = formatDateForICS(item.date);
+        const end = formatDateForICS(addDays(item.date, isTwoDayEvent ? 2 : 1));
+        const summary = item.displayBase;
+        const uid = `${start}-${summary}-${year}${String(monthInput).padStart(2, "0")}@shift-calendar`;
+
+        lines.push("BEGIN:VEVENT");
+        lines.push(`UID:${uid}`);
+        lines.push(`DTSTAMP:${nowStamp}`);
+        lines.push(`DTSTART;VALUE=DATE:${start}`);
+        lines.push(`DTEND;VALUE=DATE:${end}`);
+        lines.push(`SUMMARY:${summary}`);
+        lines.push("END:VEVENT");
+      }
+
+      lines.push("END:VCALENDAR");
+      return lines.join("\r\n");
+    }
+
+    function downloadTextFile(filename, content, mimeType) {
+      const blob = new Blob([content], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    async function exportIcs() {
+      const errorEl = document.getElementById("error");
+      const holidaySourceStatusEl = document.getElementById("holidaySourceStatus");
+      errorEl.textContent = "";
+      holidaySourceStatusEl.textContent = "祝日データを確認中...";
+
+      const year = parseInt(document.getElementById("year").value, 10);
+      const monthInput = parseInt(document.getElementById("month").value, 10);
+      const baseDate = createLocalDateFromInput(document.getElementById("baseDate").value);
+      const startIndexInput = parseInt(document.getElementById("startIndex").value, 10);
+
+      if (!Number.isInteger(year) || !Number.isInteger(monthInput) || monthInput < 1 || monthInput > 12) {
+        errorEl.textContent = "年または月が不正です。";
+        holidaySourceStatusEl.textContent = "";
+        return;
+      }
+
+      if (!baseDate) {
+        errorEl.textContent = "基準日を正しく入力してください。";
+        holidaySourceStatusEl.textContent = "";
+        return;
+      }
+
+      if (!Number.isInteger(startIndexInput) || startIndexInput < 1 || startIndexInput > FIXED_PATTERN.length) {
+        errorEl.textContent = "開始交番番号が不正です。";
+        holidaySourceStatusEl.textContent = "";
+        return;
+      }
+
+      const holidayMap = await getHolidayMap(year);
+      holidaySourceStatusEl.textContent = holidaySourceInfo;
+
+      const monthData = collectMonthData(year, monthInput, baseDate, startIndexInput, holidayMap);
+      const exportTargetCount = countExportEvents(monthData);
+
+      if (exportTargetCount === 0) {
+        errorEl.textContent = "出力対象イベントがありません。";
+        return;
+      }
+
+      const ics = buildICS(monthData, year, monthInput, baseDate, startIndexInput);
+      const fileName = `shift_${year}_${String(monthInput).padStart(2, "0")}.ics`;
+      downloadTextFile(fileName, ics, "text/calendar;charset=utf-8");
+    }
+
+    function setDefaultValues() {
+      document.getElementById("year").value = 2026;
+      document.getElementById("month").value = 3;
+      document.getElementById("baseDate").value = "2026-03-14";
+      document.getElementById("startIndex").value = 53;
+    }
+
+    setDefaultValues();
+    loadSettings();
+    renderPatternPreview();
+    generate();
+  </script>
+
 </body>
+</html>
